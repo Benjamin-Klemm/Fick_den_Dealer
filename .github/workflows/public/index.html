@@ -7,72 +7,73 @@
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <div class="container">
-    <header class="topbar">
-      <div class="brand">Fick den Dealer</div>
-      <div class="roomshare">
-        <input id="shareLink" readonly />
-        <button id="copyLink">Link kopieren</button>
-      </div>
-    </header>
+  <header class="appbar">
+    <div class="brand">Fick den Dealer</div>
+    <div class="share">
+      <input id="shareLink" readonly />
+      <button id="copyLink">Link kopieren</button>
+    </div>
+  </header>
 
-    <!-- Lobby -->
-    <section id="lobby" class="card">
-      <h2>Lobby</h2>
-      <div class="row">
-        <label>Dein Name</label>
-        <input id="name" placeholder="z. B. Ben" maxlength="20"/>
-      </div>
-      <div class="row">
-        <button id="createRoom">Raum erstellen</button>
-        <input id="roomCode" placeholder="Raumcode" />
-        <button id="joinRoom">Beitreten</button>
-      </div>
-      <div class="players" id="players"></div>
-      <div class="row">
-        <button id="startGame" class="primary">Spiel starten</button>
-      </div>
-      <div class="hintline">Tipp: Teile den Link oben, damit Freunde direkt beitreten.</div>
-    </section>
+  <!-- Lobby -->
+  <section id="lobby" class="panel">
+    <h2>Lobby</h2>
+    <div class="row">
+      <label>Dein Name</label>
+      <input id="name" maxlength="20" placeholder="z. B. Ben"/>
+    </div>
+    <div class="row">
+      <button id="createRoom">Raum erstellen</button>
+      <input id="roomCode" placeholder="Raumcode"/>
+      <button id="joinRoom">Beitreten</button>
+    </div>
+    <div id="players" class="chips"></div>
+    <div class="row">
+      <button id="startGame" class="primary">Spiel starten</button>
+    </div>
+    <p class="hint">Teile den Link oben, damit Freunde direkt beitreten können.</p>
+  </section>
 
-    <!-- Game -->
-    <section id="game" class="grid hidden">
-      <div class="card">
-        <h3>Runde</h3>
-        <div id="status"></div>
-        <div id="deckCount"></div>
-        <div id="dealerInfo"></div>
-        <div id="turnInfo"></div>
-      </div>
+  <!-- Spiel -->
+  <section id="game" class="grid hidden">
+    <div class="panel">
+      <div id="dealerBadge" class="badge big"></div>
+      <div id="turnBadge" class="badge subtle"></div>
+      <div id="deckCount" class="muted"></div>
+    </div>
 
-      <div class="card">
-        <h3>Dealer-Ansicht</h3>
-        <div id="dealerCard" class="dealerCard">Verdeckt</div>
-        <button id="peekBtn">Karte anzeigen (nur Dealer)</button>
+    <div class="panel">
+      <h3>Deine Ansicht</h3>
+      <!-- Dealer -->
+      <div id="dealerView" class="hidden">
+        <div class="cardface" id="dealerCard">？</div>
+        <button id="peekBtn">Karte zeigen (nur Dealer)</button>
       </div>
-
-      <div class="card">
-        <h3>Tippen</h3>
+      <!-- Aktiver Spieler -->
+      <div id="turnView" class="hidden">
+        <div class="muted" id="firstGuessInfo">Erster Tipp: –</div>
         <div id="hintBox" class="hint"></div>
         <div id="rankPad" class="pad"></div>
       </div>
+      <!-- Zuschauer -->
+      <div id="spectatorView" class="muted hidden">Warte bis du an der Reihe bist…</div>
+    </div>
 
-      <div class="card">
-        <h3>Letztes Ergebnis</h3>
-        <div id="log"></div>
-      </div>
+    <div class="panel">
+      <h3>Aktueller Tipp / Ergebnis</h3>
+      <div id="log"></div>
+    </div>
 
-      <div class="card">
-        <h3>Aufgedeckte Karten</h3>
-        <div id="history"></div>
-      </div>
+    <div class="panel">
+      <h3>Aufgedeckte Karten</h3>
+      <div id="history" class="hist"></div>
+    </div>
 
-      <div class="card">
-        <h3>Schlucke</h3>
-        <div id="tally"></div>
-      </div>
-    </section>
-  </div>
+    <div class="panel">
+      <h3>Schlucke</h3>
+      <div id="tally"></div>
+    </div>
+  </section>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
