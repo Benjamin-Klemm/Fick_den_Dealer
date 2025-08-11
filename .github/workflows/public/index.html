@@ -2,7 +2,10 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <!-- WICHTIG für Mobile -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="theme-color" content="#0b0f17"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
   <title>Fick den Dealer – Online</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
@@ -20,11 +23,11 @@
     <h2>Lobby</h2>
     <div class="row">
       <label>Dein Name</label>
-      <input id="name" maxlength="20" placeholder="z. B. Ben"/>
+      <input id="name" maxlength="20" placeholder="z. B. Ben" inputmode="text" autocomplete="nickname"/>
     </div>
     <div class="row">
       <button id="createRoom">Raum erstellen</button>
-      <input id="roomCode" placeholder="Raumcode"/>
+      <input id="roomCode" placeholder="Raumcode" inputmode="text" autocapitalize="characters"/>
       <button id="joinRoom">Beitreten</button>
     </div>
     <div id="players" class="chips"></div>
@@ -44,18 +47,15 @@
 
     <div class="panel">
       <h3>Deine Ansicht</h3>
-      <!-- Dealer -->
       <div id="dealerView" class="hidden">
         <div class="cardface" id="dealerCard">？</div>
         <button id="peekBtn">Karte zeigen (nur Dealer)</button>
       </div>
-      <!-- Aktiver Spieler -->
       <div id="turnView" class="hidden">
         <div class="muted" id="firstGuessInfo">Erster Tipp: –</div>
         <div id="hintBox" class="hint"></div>
         <div id="rankPad" class="pad"></div>
       </div>
-      <!-- Zuschauer -->
       <div id="spectatorView" class="muted hidden">Warte bis du an der Reihe bist…</div>
     </div>
 
