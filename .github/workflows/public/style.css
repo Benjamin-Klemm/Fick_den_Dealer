@@ -1,1 +1,28 @@
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;background:#0b0f17;color:#e7ecf3}
+:root{
+  --bg:#0b0f17; --card:#121826; --muted:#9fb0c3;
+  --line:#213047; --accent:#3b82f6; --accent-2:#1e40af; --text:#e7ecf3;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif}
+.container{max-width:1100px;margin:0 auto;padding:20px}
+.hidden{display:none}
+.topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.brand{font-weight:700;font-size:22px}
+.roomshare{display:flex;gap:8px;align-items:center}
+.roomshare input{width:420px;max-width:60vw}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 5px 24px rgba(0,0,0,.25);margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+input{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--text);outline:none}
+button{background:var(--line);border:none;border-radius:10px;padding:10px 14px;color:var(--text);cursor:pointer}
+button.primary{background:var(--accent)}
+button:hover{filter:brightness(1.08)}
+.players{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.badge{background:#0f1626;border:1px solid var(--line);border-radius:999px;padding:6px 10px}
+.hintline{color:var(--muted);font-size:13px;margin-top:8px}
+.dealerCard{padding:10px;border:1px dashed var(--line);border-radius:8px;min-height:44px}
+.pad{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px}
+.pad button{background:var(--accent-2);font-weight:600}
+.log-item{padding:6px;border-bottom:1px solid var(--line);font-size:14px}
+.small{opacity:.8;font-size:12px}
+
