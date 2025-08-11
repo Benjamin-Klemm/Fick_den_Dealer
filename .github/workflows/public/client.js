@@ -37,7 +37,7 @@ function renderPad(phase){
   }
 }
 
-// NEU: sortierte Kartenübersicht (2 → A) mit Count-Badge
+// sortierte Kartenübersicht (2 → A) mit Count-Badge
 function renderHistory(room){
   const area = $('#history'); if (!area) return;
   area.innerHTML='';
@@ -173,3 +173,4 @@ $('#copyLink').onclick = async () => {
   let code = p.get('room') || location.hash.replace('#','');
   if (code) { code = code.toUpperCase(); $('#roomCode').value = code; }
 })();
+
