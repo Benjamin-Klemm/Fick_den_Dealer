@@ -37,16 +37,35 @@ function renderPad(phase){
   }
 }
 
+// NEU: sortierte Kartenübersicht (2 → A) mit Count-Badge
 function renderHistory(room){
   const area = $('#history'); if (!area) return;
   area.innerHTML='';
-  (room.history||[]).forEach((h,i)=>{
+
+  // Counts je Rang aus der History bilden
+  const counts = new Map();
+  (room.history||[]).forEach(h => counts.set(h.rank, (counts.get(h.rank)||0)+1));
+
+  // Immer in fester Reihenfolge 2..A darstellen
+  for (let r=2; r<=14; r++){
+    const c = counts.get(r) || 0;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'cardwrap';
+
     const card = document.createElement('div');
-    card.className = 'cardface small';
-    card.textContent = RANK_TEXT(h.rank);
-    card.title = `#${i+1} • von ${state.room?.players.find(p=>p.id===h.byPlayerId)?.name||'—'}`;
-    area.appendChild(card);
-  });
+    card.className = 'cardface small' + (c === 0 ? ' dim' : '');
+    card.textContent = RANK_TEXT(r);
+    card.title = `${RANK_LABEL(r)} × ${c}`;
+
+    const badge = document.createElement('span');
+    badge.className = 'count' + (c === 0 ? ' zero' : '');
+    badge.textContent = `× ${c}`;
+
+    wrap.appendChild(card);
+    wrap.appendChild(badge);
+    area.appendChild(wrap);
+  }
 }
 
 function renderTally(room){
@@ -69,7 +88,7 @@ function renderRoom(room){
   $('#turnBadge').textContent   = `Am Zug: ${room.players[room.turnIdx]?.name || '-'}`;
   $('#deckCount').textContent   = `Karten im Stapel: ${room.deckCount}`;
 
-  // FailCounter anzeigen
+  // FailCounter anzeigen (wie viele bis Dealerwechsel)
   if (typeof room.failCount === 'number') {
     const remaining = Math.max(0, 3 - room.failCount);
     $('#dealerBadge').textContent += `  —  Noch ${remaining} Fehlversuch${remaining===1?'':'e'} bis Dealerwechsel`;
@@ -80,6 +99,7 @@ function renderRoom(room){
     const meIsDealer = room.players[room.dealerIdx]?.id === state.me.id;
     const meIsTurn   = room.players[room.turnIdx]?.id === state.me.id;
 
+    // Nur aktueller Spieler sieht "Tippen"
     $('#dealerView').classList.toggle('hidden', !meIsDealer);
     $('#turnView').classList.toggle('hidden', !meIsTurn);
     $('#spectatorView').classList.toggle('hidden', meIsDealer || meIsTurn);
