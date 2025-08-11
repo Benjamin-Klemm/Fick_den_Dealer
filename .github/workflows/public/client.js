@@ -10,7 +10,7 @@ const RANK_LABEL = r => r<=10?String(r):({11:'Bube (11)',12:'Dame (12)',13:'Kön
 function setShareLink(code){ $('#shareLink').value = `${location.origin}/?room=${code}`; }
 
 function renderPlayers(room){
-  const box = $('#players'); if(!box) return;
+  const box = $('#players'); if (!box) return;
   box.innerHTML='';
   room.players.forEach((p,idx)=>{
     const el = document.createElement('div');
@@ -24,8 +24,8 @@ function renderPlayers(room){
 }
 
 function renderPad(phase){
-  const pad = $('#rankPad'); if(!pad) return;
-  pad.innerHTML = '';
+  const pad = $('#rankPad'); if (!pad) return;
+  pad.innerHTML='';
   for (let r=2;r<=14;r++){
     const b = document.createElement('button');
     b.textContent = RANK_TEXT(r);
@@ -38,20 +38,19 @@ function renderPad(phase){
 }
 
 function renderHistory(room){
-  // Reihenfolge der aufgedeckten Karten als kleine Karten anzeigen
-  const area = $('#history'); if(!area) return;
+  const area = $('#history'); if (!area) return;
   area.innerHTML='';
   (room.history||[]).forEach((h,i)=>{
     const card = document.createElement('div');
     card.className = 'cardface small';
     card.textContent = RANK_TEXT(h.rank);
-    card.title = `#${i+1} von ${state.room?.players.find(p=>p.id===h.byPlayerId)?.name||'—'}`;
+    card.title = `#${i+1} • von ${state.room?.players.find(p=>p.id===h.byPlayerId)?.name||'—'}`;
     area.appendChild(card);
   });
 }
 
 function renderTally(room){
-  const t = $('#tally'); if(!t) return;
+  const t = $('#tally'); if (!t) return;
   t.innerHTML='';
   room.players.forEach(p=>{
     const row = document.createElement('div');
@@ -72,17 +71,16 @@ function renderRoom(room){
 
   if (room.status === 'playing' || room.status === 'ended'){
     show('#game');
-
     const meIsDealer = room.players[room.dealerIdx]?.id === state.me.id;
     const meIsTurn   = room.players[room.turnIdx]?.id === state.me.id;
 
+    // Nur der aktive Spieler sieht "Tippen"
     $('#dealerView').classList.toggle('hidden', !meIsDealer);
     $('#turnView').classList.toggle('hidden', !meIsTurn);
     $('#spectatorView').classList.toggle('hidden', meIsDealer || meIsTurn);
 
     if (room.round){
       renderPad(room.round.phase);
-      // Zeige MEINEN ersten Tipp in meiner Ansicht
       $('#firstGuessInfo').textContent = `Erster Tipp: ${room.round.firstGuess ? RANK_LABEL(room.round.firstGuess) : '–'}`;
       $('#hintBox').textContent = room.round.phase==='second' && room.round.hint
         ? `Hinweis: ${room.round.hint==='higher'?'DRÜBER':'DRUNTER'}`
@@ -100,26 +98,25 @@ function renderRoom(room){
   }
 }
 
-function logLine(text){ const log=$('#log'); if (log) log.textContent = text; }
+function logLine(text){ const log = $('#log'); if (log) log.textContent = text; }
 
-// --- Socket events ---
+// Sockets
 socket.on('connect', ()=>{ state.me.id = socket.id; });
 
 socket.on('room:update', (room) => { renderRoom(room); });
 
 socket.on('dealer:peek', ({rank}) => {
-  const d = $('#dealerCard');
-  if (d){ d.textContent = RANK_TEXT(rank); d.classList.remove('dim'); }
+  const d = $('#dealerCard'); if (d){ d.textContent = RANK_TEXT(rank); d.classList.remove('dim'); }
 });
 
-// NEU: Aktueller Tipp für alle
+// Zeige aktuellen Tipp (für alle)
 socket.on('round:guess', (ev) => {
   const player = state.room?.players.find(p=>p.id===ev.byPlayerId)?.name || 'Spieler';
   const which  = ev.which === 'first' ? 'Erster Tipp' : 'Zweiter Tipp';
   logLine(`${player} → ${which}: ${RANK_LABEL(ev.rank)}`);
 });
 
-// Ergebnis (mit Schlucke) für alle
+// Ergebnis + Schlucke (für alle)
 socket.on('round:result', (ev) => {
   const p = state.room?.players.find(x=>x.id===ev.turnPlayerId)?.name || 'Spieler';
   const t = state.room?.players.find(x=>x.id===ev.targetId)?.name || '—';
@@ -132,7 +129,7 @@ socket.on('round:result', (ev) => {
   const d = $('#dealerCard'); if (d){ d.textContent='？'; d.classList.add('dim'); }
 });
 
-// --- UI ---
+// UI
 $('#createRoom').onclick = () => {
   const name = $('#name').value.trim();
   socket.emit('room:create', {name}, r => !r?.ok && alert(r?.error||'Fehler'));
@@ -144,5 +141,15 @@ $('#joinRoom').onclick = () => {
 };
 $('#startGame').onclick = () => socket.emit('game:start', r=>!r?.ok && alert(r?.error||'Fehler beim Start'));
 $('#peekBtn').onclick = () => socket.emit('dealer:peek');
-$('#copyLink').onclick = async () => { try { await navigator.clipboard.writeText($('#shareLink').value); const b=$('#copyLink'); const o=b.textContent; b.textContent='Kopiert!'; setTimeout(()=>b.textContent=o,1200);} catch { alert('Kopieren fehlgeschlagen'); } };
-(function(){ const p=new URLSearchParams(location.search); let code=p.get('room')||location.hash.replace('#',''); if(code){ code=code.toUpperCase(); $('#roomCode').value=code; }})();
+$('#copyLink').onclick = async () => {
+  try { await navigator.clipboard.writeText($('#shareLink').value);
+    const b = $('#copyLink'); const o = b.textContent; b.textContent='Kopiert!'; setTimeout(()=>b.textContent=o,1200);
+  } catch { alert('Kopieren fehlgeschlagen'); }
+};
+
+// Auto-Join (?room=CODE oder #CODE)
+(function(){
+  const p = new URLSearchParams(location.search);
+  let code = p.get('room') || location.hash.replace('#','');
+  if (code) { code = code.toUpperCase(); $('#roomCode').value = code; }
+})();
