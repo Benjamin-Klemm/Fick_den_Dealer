@@ -1,23 +1,53 @@
 :root{
   --bg:#0b0f17; --panel:#121826; --line:#213047; --text:#e7ecf3;
   --muted:#96a8be; --primary:#3b82f6; --primary-2:#1f56c9; --chip:#0f1626;
+  --safe-b: env(safe-area-inset-bottom, 0px);
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif}
+html,body{
+  margin:0; height:100%; background:var(--bg); color:var(--text);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;
+  -webkit-text-size-adjust:100%; /* verhindert iOS-Autozoom */
+}
 .hidden{display:none}
-.appbar{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:14px 18px}
-.brand{font-weight:800;font-size:22px}
-.share{display:flex;gap:8px;align-items:center}
-.share input{width:440px;max-width:60vw;background:#0b1220;border:1px solid var(--line);color:var(--text);padding:10px;border-radius:10px}
 
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;padding:0 18px 18px}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+/* Appbar oben */
+.appbar{
+  position:sticky; top:0; z-index:10;
+  display:flex; gap:12px; align-items:center; justify-content:space-between;
+  padding:12px 16px; background:rgba(11,15,23,.9); backdrop-filter: blur(6px);
+  border-bottom:1px solid var(--line);
+}
+.brand{font-weight:800;font-size:20px}
+.share{display:flex;gap:8px;align-items:center;min-width:0}
+.share input{
+  width:440px; max-width:60vw; min-width:160px;
+  background:#0b1220;border:1px solid var(--line);color:var(--text);
+  padding:10px;border-radius:10px
+}
+
+/* Layout */
+.grid{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:12px; padding:12px 16px calc(16px + var(--safe-b));
+}
+.panel{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:16px; box-shadow:0 6px 24px rgba(0,0,0,.25)
+}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
-input{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--text)}
-button{background:var(--line);border:none;border-radius:10px;padding:10px 14px;color:var(--text);cursor:pointer}
+input{
+  background:#0b1220;border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;color:var(--text); font-size:16px; /* 16px verhindert iOS-Zoom */
+}
+button{
+  background:var(--line); border:none; border-radius:12px;
+  padding:12px 16px; color:var(--text); cursor:pointer; font-size:16px;
+  touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+}
 button.primary{background:var(--primary)}
+button:active{transform:translateY(1px)}
 button:hover{filter:brightness(1.07)}
-
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .badge{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:6px 10px}
 .badge.big{font-weight:700}
@@ -25,29 +55,54 @@ button:hover{filter:brightness(1.07)}
 .muted{color:var(--muted)}
 .hint{margin-top:4px;color:var(--muted)}
 
-.pad{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:10px}
-.pad button{background:var(--primary-2);font-weight:700}
-
-#log{min-height:28px;border-top:1px solid var(--line);padding-top:8px}
-
-.hist{display:flex;flex-wrap:wrap;gap:6px}
-
+/* Karten & Pad */
 .cardface{
   width:140px;height:200px;border-radius:12px;border:2px solid #e5e7eb;
   background:linear-gradient(145deg,#fff,#f4f7fa); color:#111; display:flex;align-items:center;justify-content:center;
   font-weight:800;font-size:34px; margin-bottom:10px; user-select:none;
 }
 .cardface.small{
-  width:48px;height:68px;font-size:18px;margin:4px;border-radius:8px;
+  width:54px;height:76px;font-size:18px;margin:4px;border-radius:8px;
   display:inline-flex;align-items:center;justify-content:center;
   background:linear-gradient(145deg,#fff,#f4f7fa); color:#111; border:1px solid #e5e7eb;
 }
 .cardface.dim{filter:grayscale(1) brightness(.9)}
-/* Karten-Wrapper + Count-Badge für die sortierte Übersicht */
+
+/* sortierte Übersicht: Karte + Count */
 .cardwrap { position: relative; display:inline-block; }
 .count{
   position:absolute; right:-6px; bottom:-6px;
   background:#0b1220; color:#e7ecf3; border:1px solid var(--line);
   border-radius:999px; font-size:12px; padding:2px 6px; line-height:1;
 }
-.count.zero{ opacity:.5 }
+.count.zero{ opacity:.45 }
+
+#log{min-height:28px;border-top:1px solid var(--line);padding-top:8px}
+
+/* Tipp-Pad – große Touch-Targets */
+.pad{
+  display:grid; gap:8px; margin-top:10px;
+  grid-template-columns:repeat(7,1fr);
+}
+.pad button{
+  background:var(--primary-2); font-weight:700; min-height:48px; border-radius:12px;
+}
+
+/* Mobile Anpassungen */
+@media (max-width: 700px){
+  .brand{font-size:18px}
+  .share input{max-width:48vw}
+  .grid{gap:10px; padding:10px 12px calc(12px + var(--safe-b))}
+  .panel{padding:14px}
+  .pad{grid-template-columns:repeat(4,1fr)} /* 4 Spalten = größere Buttons */
+  .pad button{min-height:56px; font-size:18px}
+  .cardface{width:120px;height:172px;font-size:30px}
+  .cardface.small{width:48px;height:68px}
+  button, input{font-size:16px} /* iOS: kein Zoom */
+}
+
+/* „nur Handy“-Feinschliff */
+@media (max-width: 400px){
+  .share{gap:6px}
+  .share input{max-width:46vw}
+}
