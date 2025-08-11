@@ -25,8 +25,4 @@ button:hover{filter:brightness(1.08)}
 .pad button{background:var(--accent-2);font-weight:600}
 .log-item{padding:6px;border-bottom:1px solid var(--line);font-size:14px}
 .small{opacity:.8;font-size:12px}
-.cardface.small{
-  width:48px;height:68px;font-size:18px;margin:4px;border-radius:8px;
-  display:inline-flex;align-items:center;justify-content:center;
-  background:linear-gradient(145deg,#fff,#f4f7fa); color:#111; border:1px solid #e5e7eb;
-}
+
