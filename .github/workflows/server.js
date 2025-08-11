@@ -40,7 +40,7 @@ function snapshot(room) {
     } : null,
     history: room.history,
     tally: room.tally,
-    failCount: room.failCount // NEU für Anzeige
+    failCount: room.failCount // für die Anzeige „noch X bis Dealerwechsel“
   };
 }
 
@@ -51,7 +51,9 @@ function startGame(room) {
   room.history = [];
   room.tally = {};
   for (const p of room.players) room.tally[p.id] = 0;
-  room.failCount = 0; // Reset Fail-Counter
+  room.failCount = 0;
+
+  // Dealer zufällig, Start-Turn ist die Person links vom Dealer
   room.dealerIdx = Math.floor(Math.random() * room.players.length);
   room.turnIdx   = nextIdx(room.dealerIdx, room.players.length);
   startRound(room);
@@ -61,21 +63,38 @@ function startRound(room) {
   if (room.topIndex >= room.deck.length) { room.status = 'ended'; room.round = null; return; }
   room.round = { phase: 'first', currentRank: room.deck[room.topIndex], firstGuess: null, hint: null };
   const dealerId = room.players[room.dealerIdx].id;
-  io.to(dealerId).emit('dealer:peek', { rank: room.round.currentRank });
+  io.to(dealerId).emit('dealer:peek', { rank: room.round.currentRank }); // nur Dealer sieht die Karte
 }
 
+// *** HIER ist die wichtige Änderung ***
 function advanceAfterReveal(room) {
   room.topIndex += 1;
-  if (room.topIndex >= room.deck.length) { 
-    room.status = 'ended'; 
-    room.round = null; 
-    return; 
+
+  if (room.topIndex >= room.deck.length) {
+    room.status = 'ended';
+    room.round = null;
+    return;
   }
+
+  // Prüfen, ob der Dealer jetzt wechselt (nach 3 Fails in Folge)
+  let dealerRotated = false;
   if (room.failCount >= 3) {
     room.dealerIdx = nextIdx(room.dealerIdx, room.players.length);
     room.failCount = 0;
+    dealerRotated = true;
   }
-  room.turnIdx = nextIdx(room.dealerIdx, room.players.length);
+
+  if (dealerRotated) {
+    // Nach Dealerwechsel: Startspieler ist links vom neuen Dealer
+    room.turnIdx = nextIdx(room.dealerIdx, room.players.length);
+  } else {
+    // Kein Dealerwechsel: einfach zum nächsten Spieler im Kreis weitergeben,
+    // aber den Dealer überspringen
+    let next = nextIdx(room.turnIdx, room.players.length);
+    if (next === room.dealerIdx) next = nextIdx(next, room.players.length);
+    room.turnIdx = next;
+  }
+
   startRound(room);
 }
 
@@ -127,6 +146,7 @@ io.on('connection', (socket) => {
     io.to(socket.id).emit('dealer:peek', { rank: room.round.currentRank });
   });
 
+  // Erster Tipp
   socket.on('guess:first', ({ rank }, cb) => {
     const room = rooms[socket.data.code];
     if (!room || room.status !== 'playing' || !room.round) return;
@@ -138,7 +158,7 @@ io.on('connection', (socket) => {
 
     const actual = room.round.currentRank;
     if (rank === actual) {
-      room.failCount = 0;
+      room.failCount = 0; // Treffer -> Fail-Count reset
       const dealerId = room.players[room.dealerIdx].id;
       room.tally[dealerId] += valueOf(actual);
       io.to(room.code).emit('round:result', { type:'first-correct', turnPlayerId: socket.id, actual, drinks:valueOf(actual), targetId: dealerId });
@@ -155,6 +175,7 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Zweiter Tipp
   socket.on('guess:second', ({ rank }, cb) => {
     const room = rooms[socket.data.code];
     if (!room || room.status !== 'playing' || !room.round) return;
@@ -168,7 +189,7 @@ io.on('connection', (socket) => {
     const first = room.round.firstGuess ?? actual;
 
     if (rank === actual) {
-      room.failCount = 0;
+      room.failCount = 0; // Treffer -> reset
       const dealerId = room.players[room.dealerIdx].id;
       const diff = Math.abs(first - actual);
       room.tally[dealerId] += diff;
@@ -176,7 +197,7 @@ io.on('connection', (socket) => {
     } else {
       const diff = Math.abs(rank - actual);
       room.tally[socket.id] += diff;
-      room.failCount += 1;
+      room.failCount += 1; // Fehlversuch zählt
       io.to(room.code).emit('round:result', { type:'second-wrong', turnPlayerId: socket.id, actual, drinks: diff, targetId: socket.id });
     }
 
@@ -207,3 +228,4 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => console.log('Server listening on', PORT));
+
