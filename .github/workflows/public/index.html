@@ -2,15 +2,11 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8"/>
-  <!-- WICHTIG für Mobile -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <meta name="theme-color" content="#0b0f17"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
   <title>Fick den Dealer – Online</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <header class="appbar">
+  <header>
     <div class="brand">Fick den Dealer</div>
     <div class="share">
       <input id="shareLink" readonly />
@@ -19,22 +15,23 @@
   </header>
 
   <!-- Lobby -->
-  <section id="lobby" class="panel">
-    <h2>Lobby</h2>
-    <div class="row">
-      <label>Dein Name</label>
-      <input id="name" maxlength="20" placeholder="z. B. Ben" inputmode="text" autocomplete="nickname"/>
+  <section id="lobby" class="grid">
+    <div class="panel">
+      <h2>Lobby</h2>
+      <div class="row">
+        <label>Dein Name</label>
+        <input id="name" maxlength="20" placeholder="z. B. Ben"/>
+      </div>
+      <div class="row">
+        <button id="createRoom">Raum erstellen</button>
+        <input id="roomCode" placeholder="Raumcode"/>
+        <button id="joinRoom">Beitreten</button>
+      </div>
+      <div id="players" class="chips"></div>
+      <div class="row">
+        <button id="startGame" class="primary">Spiel starten</button>
+      </div>
     </div>
-    <div class="row">
-      <button id="createRoom">Raum erstellen</button>
-      <input id="roomCode" placeholder="Raumcode" inputmode="text" autocapitalize="characters"/>
-      <button id="joinRoom">Beitreten</button>
-    </div>
-    <div id="players" class="chips"></div>
-    <div class="row">
-      <button id="startGame" class="primary">Spiel starten</button>
-    </div>
-    <p class="hint">Teile den Link oben, damit Freunde direkt beitreten können.</p>
   </section>
 
   <!-- Spiel -->
@@ -66,7 +63,7 @@
 
     <div class="panel">
       <h3>Aufgedeckte Karten</h3>
-      <div id="history" class="hist"></div>
+      <div id="history"></div>
     </div>
 
     <div class="panel">
@@ -79,3 +76,4 @@
   <script src="client.js"></script>
 </body>
 </html>
+
