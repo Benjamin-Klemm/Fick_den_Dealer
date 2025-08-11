@@ -11,15 +11,6 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-/*
-rooms[code] = {
-  code, status: 'lobby'|'playing'|'ended',
-  players: [{id,name,isOnline}], dealerIdx, turnIdx,
-  deck: number[], topIndex, history: [{rank, byPlayerId}],
-  tally: { [playerId]: number },
-  round: { phase:'first'|'second', currentRank, firstGuess, hint:'higher'|'lower'|null }
-}
-*/
 const rooms = Object.create(null);
 const nextIdx = (i, n) => (i + 1) % n;
 const valueOf = r => r;
@@ -48,7 +39,8 @@ function snapshot(room) {
       hint: room.round.hint ?? null
     } : null,
     history: room.history,
-    tally: room.tally
+    tally: room.tally,
+    failCount: room.failCount // NEU für Anzeige
   };
 }
 
@@ -59,8 +51,7 @@ function startGame(room) {
   room.history = [];
   room.tally = {};
   for (const p of room.players) room.tally[p.id] = 0;
-
-  // Dealer zufällig, danach nach jeder Karte reihum
+  room.failCount = 0; // Reset Fail-Counter
   room.dealerIdx = Math.floor(Math.random() * room.players.length);
   room.turnIdx   = nextIdx(room.dealerIdx, room.players.length);
   startRound(room);
@@ -69,22 +60,26 @@ function startGame(room) {
 function startRound(room) {
   if (room.topIndex >= room.deck.length) { room.status = 'ended'; room.round = null; return; }
   room.round = { phase: 'first', currentRank: room.deck[room.topIndex], firstGuess: null, hint: null };
-  // Karte nur an Dealer
   const dealerId = room.players[room.dealerIdx].id;
   io.to(dealerId).emit('dealer:peek', { rank: room.round.currentRank });
 }
 
 function advanceAfterReveal(room) {
   room.topIndex += 1;
-  // Dealer rotiert IMMER weiter
-  room.dealerIdx = nextIdx(room.dealerIdx, room.players.length);
-  room.turnIdx   = nextIdx(room.dealerIdx, room.players.length);
-  if (room.topIndex >= room.deck.length) { room.status = 'ended'; room.round = null; }
-  else startRound(room);
+  if (room.topIndex >= room.deck.length) { 
+    room.status = 'ended'; 
+    room.round = null; 
+    return; 
+  }
+  if (room.failCount >= 3) {
+    room.dealerIdx = nextIdx(room.dealerIdx, room.players.length);
+    room.failCount = 0;
+  }
+  room.turnIdx = nextIdx(room.dealerIdx, room.players.length);
+  startRound(room);
 }
 
 io.on('connection', (socket) => {
-  // Raum erstellen
   socket.on('room:create', ({ name }, cb) => {
     const code = Math.random().toString(36).slice(2, 8).toUpperCase();
     rooms[code] = {
@@ -92,7 +87,8 @@ io.on('connection', (socket) => {
       players: [{ id: socket.id, name: (name || 'Spieler').trim(), isOnline: true }],
       dealerIdx: 0, turnIdx: 0,
       deck: [], topIndex: 0, history: [], tally: { [socket.id]: 0 },
-      round: null
+      round: null,
+      failCount: 0
     };
     socket.join(code);
     socket.data.code = code;
@@ -101,7 +97,6 @@ io.on('connection', (socket) => {
     io.to(code).emit('room:update', snapshot(rooms[code]));
   });
 
-  // Raum beitreten
   socket.on('room:join', ({ code, name }, cb) => {
     code = (code || '').toUpperCase();
     const room = rooms[code];
@@ -116,7 +111,6 @@ io.on('connection', (socket) => {
     io.to(code).emit('room:update', snapshot(room));
   });
 
-  // Start (jeder darf; Dealer wird zufällig gewählt)
   socket.on('game:start', (cb) => {
     const room = rooms[socket.data.code];
     if (!room) return cb?.({ ok:false, error:'Kein Raum' });
@@ -126,7 +120,6 @@ io.on('connection', (socket) => {
     io.to(room.code).emit('room:update', snapshot(room));
   });
 
-  // Dealer peek
   socket.on('dealer:peek', () => {
     const room = rooms[socket.data.code];
     if (!room || !room.round) return;
@@ -134,7 +127,6 @@ io.on('connection', (socket) => {
     io.to(socket.id).emit('dealer:peek', { rank: room.round.currentRank });
   });
 
-  // Erster Tipp
   socket.on('guess:first', ({ rank }, cb) => {
     const room = rooms[socket.data.code];
     if (!room || room.status !== 'playing' || !room.round) return;
@@ -142,11 +134,11 @@ io.on('connection', (socket) => {
     if (room.round.phase !== 'first') return cb?.({ ok:false, error:'Falsche Phase' });
     rank = Number(rank); if (!(rank >= 2 && rank <= 14)) return cb?.({ ok:false, error:'Ungültiger Rang' });
 
-    // Live für alle anzeigen
     io.to(room.code).emit('round:guess', { which:'first', byPlayerId: socket.id, rank });
 
     const actual = room.round.currentRank;
     if (rank === actual) {
+      room.failCount = 0;
       const dealerId = room.players[room.dealerIdx].id;
       room.tally[dealerId] += valueOf(actual);
       io.to(room.code).emit('round:result', { type:'first-correct', turnPlayerId: socket.id, actual, drinks:valueOf(actual), targetId: dealerId });
@@ -163,7 +155,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Zweiter Tipp
   socket.on('guess:second', ({ rank }, cb) => {
     const room = rooms[socket.data.code];
     if (!room || room.status !== 'playing' || !room.round) return;
@@ -171,13 +162,13 @@ io.on('connection', (socket) => {
     if (room.round.phase !== 'second') return cb?.({ ok:false, error:'Falsche Phase' });
     rank = Number(rank); if (!(rank >= 2 && rank <= 14)) return cb?.({ ok:false, error:'Ungültiger Rang' });
 
-    // Live anzeigen
     io.to(room.code).emit('round:guess', { which:'second', byPlayerId: socket.id, rank });
 
     const actual = room.round.currentRank;
     const first = room.round.firstGuess ?? actual;
 
     if (rank === actual) {
+      room.failCount = 0;
       const dealerId = room.players[room.dealerIdx].id;
       const diff = Math.abs(first - actual);
       room.tally[dealerId] += diff;
@@ -185,6 +176,7 @@ io.on('connection', (socket) => {
     } else {
       const diff = Math.abs(rank - actual);
       room.tally[socket.id] += diff;
+      room.failCount += 1;
       io.to(room.code).emit('round:result', { type:'second-wrong', turnPlayerId: socket.id, actual, drinks: diff, targetId: socket.id });
     }
 
@@ -194,7 +186,6 @@ io.on('connection', (socket) => {
     cb?.({ ok:true });
   });
 
-  // Rename
   socket.on('player:rename', ({ name }) => {
     const room = rooms[socket.data.code]; if (!room) return;
     const p = room.players.find(p => p.id === socket.id);
@@ -216,4 +207,3 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => console.log('Server listening on', PORT));
-
