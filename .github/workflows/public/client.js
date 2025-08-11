@@ -69,12 +69,17 @@ function renderRoom(room){
   $('#turnBadge').textContent   = `Am Zug: ${room.players[room.turnIdx]?.name || '-'}`;
   $('#deckCount').textContent   = `Karten im Stapel: ${room.deckCount}`;
 
+  // FailCounter anzeigen
+  if (typeof room.failCount === 'number') {
+    const remaining = Math.max(0, 3 - room.failCount);
+    $('#dealerBadge').textContent += `  —  Noch ${remaining} Fehlversuch${remaining===1?'':'e'} bis Dealerwechsel`;
+  }
+
   if (room.status === 'playing' || room.status === 'ended'){
     show('#game');
     const meIsDealer = room.players[room.dealerIdx]?.id === state.me.id;
     const meIsTurn   = room.players[room.turnIdx]?.id === state.me.id;
 
-    // Nur der aktive Spieler sieht "Tippen"
     $('#dealerView').classList.toggle('hidden', !meIsDealer);
     $('#turnView').classList.toggle('hidden', !meIsTurn);
     $('#spectatorView').classList.toggle('hidden', meIsDealer || meIsTurn);
@@ -100,7 +105,6 @@ function renderRoom(room){
 
 function logLine(text){ const log = $('#log'); if (log) log.textContent = text; }
 
-// Sockets
 socket.on('connect', ()=>{ state.me.id = socket.id; });
 
 socket.on('room:update', (room) => { renderRoom(room); });
@@ -109,14 +113,12 @@ socket.on('dealer:peek', ({rank}) => {
   const d = $('#dealerCard'); if (d){ d.textContent = RANK_TEXT(rank); d.classList.remove('dim'); }
 });
 
-// Zeige aktuellen Tipp (für alle)
 socket.on('round:guess', (ev) => {
   const player = state.room?.players.find(p=>p.id===ev.byPlayerId)?.name || 'Spieler';
   const which  = ev.which === 'first' ? 'Erster Tipp' : 'Zweiter Tipp';
   logLine(`${player} → ${which}: ${RANK_LABEL(ev.rank)}`);
 });
 
-// Ergebnis + Schlucke (für alle)
 socket.on('round:result', (ev) => {
   const p = state.room?.players.find(x=>x.id===ev.turnPlayerId)?.name || 'Spieler';
   const t = state.room?.players.find(x=>x.id===ev.targetId)?.name || '—';
@@ -129,7 +131,6 @@ socket.on('round:result', (ev) => {
   const d = $('#dealerCard'); if (d){ d.textContent='？'; d.classList.add('dim'); }
 });
 
-// UI
 $('#createRoom').onclick = () => {
   const name = $('#name').value.trim();
   socket.emit('room:create', {name}, r => !r?.ok && alert(r?.error||'Fehler'));
@@ -147,7 +148,6 @@ $('#copyLink').onclick = async () => {
   } catch { alert('Kopieren fehlgeschlagen'); }
 };
 
-// Auto-Join (?room=CODE oder #CODE)
 (function(){
   const p = new URLSearchParams(location.search);
   let code = p.get('room') || location.hash.replace('#','');
