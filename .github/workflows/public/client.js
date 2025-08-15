@@ -45,7 +45,6 @@
       }
     }
 
-    // sortierte Kartenübersicht (2 → A) mit Count-Badge
     function renderHistory(room){
       const area = $('#history'); if (!area) return;
       area.innerHTML='';
@@ -55,19 +54,15 @@
 
       for (let r=2; r<=14; r++){
         const c = counts.get(r) || 0;
-
         const wrap = document.createElement('div');
         wrap.className = 'cardwrap';
-
         const card = document.createElement('div');
         card.className = 'cardface small' + (c === 0 ? ' dim' : '');
         card.textContent = RANK_TEXT(r);
         card.title = `${RANK_LABEL(r)} × ${c}`;
-
         const badge = document.createElement('span');
         badge.className = 'count' + (c === 0 ? ' zero' : '');
         badge.textContent = `× ${c}`;
-
         wrap.appendChild(card);
         wrap.appendChild(badge);
         area.appendChild(wrap);
@@ -100,7 +95,6 @@
       setShareLink(room.code);
       renderPlayers(room);
 
-      // Start-Button nur für Owner sichtbar
       const amOwner = room.ownerId === state.me.id;
       const startBtn = $('#startGame');
       if (startBtn) startBtn.style.display = amOwner && room.status==='lobby' ? 'inline-block' : 'none';
@@ -113,7 +107,6 @@
       if (turnBadge)   turnBadge.textContent   = `Am Zug: ${room.players[room.turnIdx]?.name || '-'}`;
       if (deckCount)   deckCount.textContent   = `Karten im Stapel: ${room.deckCount}`;
 
-      // FailCounter anzeigen
       if (typeof room.failCount === 'number' && dealerBadge) {
         const remaining = Math.max(0, 3 - room.failCount);
         dealerBadge.textContent += `  —  Noch ${remaining} Fehlversuch${remaining===1?'':'e'} bis Dealerwechsel`;
@@ -123,38 +116,24 @@
         show('#game');
         const meIsDealer = room.players[room.dealerIdx]?.id === state.me.id;
         const meIsTurn   = room.players[room.turnIdx]?.id === state.me.id;
-
-        const dealerView = $('#dealerView');
-        const turnView   = $('#turnView');
-        const spectator  = $('#spectatorView');
-
-        const wasHiddenBefore = turnView?.classList.contains('hidden');
-
-        if (dealerView) dealerView.classList.toggle('hidden', !meIsDealer);
-        if (turnView)   turnView.classList.toggle('hidden', !meIsTurn);
-        if (spectator)  spectator.classList.toggle('hidden', meIsDealer || meIsTurn);
+        $('#dealerView')?.classList.toggle('hidden', !meIsDealer);
+        $('#turnView')?.classList.toggle('hidden', !meIsTurn);
+        $('#spectatorView')?.classList.toggle('hidden', meIsDealer || meIsTurn);
 
         if (room.round){
           renderPad(room.round.phase);
-          const firstGuessInfo = $('#firstGuessInfo');
-          const hintBox = $('#hintBox');
-          if (firstGuessInfo) firstGuessInfo.textContent = `Erster Tipp: ${room.round.firstGuess ? RANK_LABEL(room.round.firstGuess) : '–'}`;
-          if (hintBox) hintBox.textContent = room.round.phase==='second' && room.round.hint
+          $('#firstGuessInfo').textContent = `Erster Tipp: ${room.round.firstGuess ? RANK_LABEL(room.round.firstGuess) : '–'}`;
+          $('#hintBox').textContent = room.round.phase==='second' && room.round.hint
             ? `Hinweis: ${room.round.hint==='higher'?'DRÜBER':'DRUNTER'}`
             : '';
         } else {
-          const rankPad = $('#rankPad'); if (rankPad) rankPad.innerHTML = '';
-          const firstGuessInfo = $('#firstGuessInfo'); if (firstGuessInfo) firstGuessInfo.textContent = 'Erster Tipp: –';
-          const hintBox = $('#hintBox'); if (hintBox) hintBox.textContent = '';
+          $('#rankPad').innerHTML = '';
+          $('#firstGuessInfo').textContent = 'Erster Tipp: –';
+          $('#hintBox').textContent = '';
         }
 
         renderHistory(room);
         renderTally(room);
-
-        // Handy: wenn ich jetzt dran bin, scrolle den Tipp-Block ins Bild
-        if (meIsTurn && wasHiddenBefore && window.innerWidth <= 700) {
-          document.querySelector('#turnView')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
       } else {
         show('#lobby');
       }
@@ -165,47 +144,23 @@
       if (log) log.textContent = text;
     }
 
-    // ---- Popup UI ----
     function showPopup(message, ms=2500){
       const pop = $('#popup');
       const txt = $('#popup-text');
-      if (!pop || !txt) return;
       txt.textContent = message;
       pop.classList.remove('hidden');
       clearTimeout(showPopup._t);
       showPopup._t = setTimeout(()=>pop.classList.add('hidden'), ms);
     }
 
-    // --- Socket Events ---
     socket.on('connect', ()=>{ state.me.id = socket.id; });
     socket.on('room:update', (room) => { if (room) renderRoom(room); });
-
     socket.on('dealer:peek', ({rank}) => {
-      const d = $('#dealerCard'); if (d){ d.textContent = RANK_TEXT(rank); d.classList.remove('dim'); }
+      $('#dealerCard').textContent = RANK_TEXT(rank);
+      $('#dealerCard').classList.remove('dim');
     });
-
-    socket.on('round:guess', (ev) => {
-      const player = state.room?.players.find(p=>p.id===ev.byPlayerId)?.name || 'Spieler';
-      const which  = ev.which === 'first' ? 'Erster Tipp' : 'Zweiter Tipp';
-      logLine(`${player} → ${which}: ${RANK_LABEL(ev.rank)}`);
-    });
-
-    socket.on('round:result', (ev) => {
-      const p = state.room?.players.find(x=>x.id===ev.turnPlayerId)?.name || 'Spieler';
-      const t = state.room?.players.find(x=>x.id===ev.targetId)?.name || '—';
-      const msg = ev.type==='first-correct'
-        ? `${p} trifft sofort! ${t} trinkt ${ev.drinks}. (Karte: ${RANK_LABEL(ev.actual)})`
-        : ev.type==='second-correct'
-          ? `${p} trifft im 2. Versuch. ${t} trinkt ${ev.drinks}. (Karte: ${RANK_LABEL(ev.actual)})`
-          : `${p} verfehlt. ${t} trinkt ${ev.drinks}. (Karte: ${RANK_LABEL(ev.actual)})`;
-      logLine(msg);
-      const d = $('#dealerCard'); if (d){ d.textContent='？'; d.classList.add('dim'); }
-    });
-
-    // Server-seitige „Einschenken“-Nachricht
     socket.on('popup', ({message}) => showPopup(message));
 
-    // --- Buttons / Inputs (defensiv binden) ---
     const btnCreate = $('#createRoom');
     const btnJoin   = $('#joinRoom');
     const btnJoinViaLink = $('#joinViaLink');
@@ -213,24 +168,24 @@
     const btnPeek   = $('#peekBtn');
     const btnCopy   = $('#copyLink');
 
-    if (btnCreate) btnCreate.onclick = () => {
+    btnCreate.onclick = () => {
       const name = ($('#name')?.value || '').trim();
       socket.emit('room:create', {name}, r => !r?.ok && alert(r?.error||'Fehler'));
     };
-    if (btnJoin) btnJoin.onclick = () => {
+    btnJoin.onclick = () => {
       const name = ($('#name')?.value || '').trim();
       const code = ($('#roomCode')?.value || '').trim();
       socket.emit('room:join', {code, name}, r => !r?.ok && alert(r?.error||'Fehler'));
     };
-    if (btnJoinViaLink) btnJoinViaLink.onclick = () => {
+    btnJoinViaLink.onclick = () => {
       const name = ($('#name')?.value || '').trim();
       const code = state.inviteCode;
       socket.emit('room:join', {code, name}, r => !r?.ok && alert(r?.error||'Fehler'));
     };
-    if (btnStart) btnStart.onclick = () =>
+    btnStart.onclick = () =>
       socket.emit('game:start', r=>!r?.ok && alert(r?.error||'Nur der Ersteller darf starten oder nicht genug Spieler'));
-    if (btnPeek) btnPeek.onclick = () => socket.emit('dealer:peek');
-    if (btnCopy) btnCopy.onclick = async () => {
+    btnPeek.onclick = () => socket.emit('dealer:peek');
+    btnCopy.onclick = async () => {
       try {
         const link = $('#shareLink')?.value || '';
         await navigator.clipboard.writeText(link);
@@ -238,7 +193,6 @@
       } catch { alert('Kopieren fehlgeschlagen'); }
     };
 
-    // --- Auto-Join via Link (?room=CODE) ---
     (function(){
       const p = new URLSearchParams(location.search);
       let code = p.get('room') || location.hash.replace('#','');
@@ -249,12 +203,8 @@
       }
       toggleCreateJoinUI();
     })();
-
-    // kleine Sichtbarkeitsprüfung (hilft beim Debuggen)
-    // console.log('[client] init done');
   }
 
-  // robustes Bootstrapping: sofort ausführen, wenn DOM schon bereit ist
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init, { once: true });
   } else {
