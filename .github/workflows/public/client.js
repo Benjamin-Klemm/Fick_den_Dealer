@@ -79,7 +79,6 @@ function renderTally(room){
 
 function toggleCreateJoinUI() {
   const hasInvite = !!state.inviteCode;
-  // Wenn via Link gekommen: nur Name + "Beitreten"
   $('#creatorControls').classList.toggle('hidden', hasInvite);
   $('#linkJoinControls').classList.toggle('hidden', !hasInvite);
   if (hasInvite) {
@@ -92,7 +91,6 @@ function renderRoom(room){
   setShareLink(room.code);
   renderPlayers(room);
 
-  // Start-Button nur für Owner sichtbar (zusätzlich enforced am Server)
   const amOwner = room.ownerId === state.me.id;
   const startBtn = $('#startGame');
   startBtn.style.display = amOwner && room.status==='lobby' ? 'inline-block' : 'none';
@@ -144,6 +142,17 @@ function renderRoom(room){
 
 function logLine(text){ const log = $('#log'); if (log) log.textContent = text; }
 
+// ---- Popup UI ----
+function showPopup(message, ms=2500){
+  const pop = $('#popup');
+  const txt = $('#popup-text');
+  if (!pop || !txt) return;
+  txt.textContent = message;
+  pop.classList.remove('hidden');
+  clearTimeout(showPopup._t);
+  showPopup._t = setTimeout(()=>pop.classList.add('hidden'), ms);
+}
+
 // --- Socket Events ---
 socket.on('connect', ()=>{ state.me.id = socket.id; });
 socket.on('room:update', (room) => { renderRoom(room); });
@@ -170,6 +179,9 @@ socket.on('round:result', (ev) => {
   const d = $('#dealerCard'); if (d){ d.textContent='？'; d.classList.add('dim'); }
 });
 
+// Server-seitige „Einschenken“-Nachricht
+socket.on('popup', ({message}) => showPopup(message));
+
 // --- Buttons ---
 $('#createRoom').onclick = () => {
   const name = $('#name').value.trim();
@@ -180,7 +192,6 @@ $('#joinRoom').onclick = () => {
   const code = ($('#roomCode').value||'').trim();
   socket.emit('room:join', {code, name}, r => !r?.ok && alert(r?.error||'Fehler'));
 };
-// Join via Link (nur Namensfeld)
 $('#joinViaLink').onclick = () => {
   const name = $('#name').value.trim();
   const code = state.inviteCode;
@@ -204,6 +215,8 @@ $('#copyLink').onclick = async () => {
     state.inviteCode = code;
     $('#roomCode').value = code;
   }
-  toggleCreateJoinUI();
+  const hasInvite = !!state.inviteCode;
+  $('#creatorControls').classList.toggle('hidden', hasInvite);
+  $('#linkJoinControls').classList.toggle('hidden', !hasInvite);
 })();
 
