@@ -9,7 +9,7 @@
   };
   const RANK_TEXT = r => r <= 10 ? String(r) : ({ 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }[r]);
 
-  // ----- Helpers -----
+  /* ---------------- Helpers ---------------- */
   function setShareLink(code) {
     const el = $('#shareLink');
     if (el) el.value = `${location.origin}/?room=${code}`;
@@ -44,16 +44,32 @@
     }
   }
 
+  // ► NEU: Eindeutige Anzeige, welche Karten schon aufgedeckt sind (mit Zählern)
   function renderHistory(room) {
-    const counts = {};
-    (room.history || []).forEach(v => counts[v] = (counts[v] || 0) + 1);
-    const hist = $('#history'); hist.innerHTML = '';
+    const counts = new Map(); // rank -> count
+    (room.history || []).forEach(rank => counts.set(rank, (counts.get(rank) || 0) + 1));
+
+    const hist = $('#history');
+    hist.innerHTML = '';
+
     for (let r = 2; r <= 14; r++) {
+      const n = counts.get(r) || 0;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'cardwrap';
+
       const card = document.createElement('div');
-      card.className = 'cardface';
+      card.className = 'cardface small' + (n === 0 ? ' dim' : '');
       card.textContent = RANK_TEXT(r);
-      hist.appendChild(card);
-      // (mobil einfache Anzeige; Zähler sind optional)
+      card.title = `Aufgedeckt: ${n}`;
+
+      const badge = document.createElement('span');
+      badge.className = 'count' + (n === 0 ? ' zero' : '');
+      badge.textContent = `× ${n}`;
+
+      wrap.appendChild(card);
+      wrap.appendChild(badge);
+      hist.appendChild(wrap);
     }
   }
 
@@ -81,12 +97,13 @@
       const meIsDealer = room.players[room.dealerIdx]?.id === state.me.id;
       const meIsTurn   = room.players[room.turnIdx]?.id === state.me.id;
 
+      // Nur Dealer sieht Dealer-Ansicht, nur Spieler am Zug sieht Tipp-Pad
       $('#dealerView').classList.toggle('hidden', !meIsDealer);
       $('#turnView').classList.toggle('hidden', !meIsTurn);
 
       if (room.round && meIsTurn) {
         renderPad(room.round.phase);
-        $('#firstGuessInfo').textContent = `Erster Tipp: ${room.round.firstGuess || '–'}`;
+        $('#firstGuessInfo').textContent = `Erster Tipp: ${room.round.firstGuess ?? '–'}`;
         $('#hintBox').textContent = room.round.hint || '';
       } else {
         $('#rankPad').innerHTML = '';
@@ -110,13 +127,13 @@
     showPopup._t = setTimeout(() => pop.classList.add('hidden'), ms);
   }
 
-  // ----- Socket events -----
+  /* ---------------- Sockets ---------------- */
   socket.on('connect', () => { state.me.id = socket.id; });
   socket.on('room:update', room => renderRoom(room));
   socket.on('dealer:peek', ({ rank }) => { $('#dealerCard').textContent = RANK_TEXT(rank); });
   socket.on('popup', ({ message }) => showPopup(message));
 
-  // ----- Buttons -----
+  /* ---------------- Buttons ---------------- */
   $('#createRoom').onclick = () => {
     const name = ($('#name').value || '').trim();
     socket.emit('room:create', { name }, (r) => { if (!r?.ok) alert(r?.error || 'Fehler'); });
@@ -131,7 +148,8 @@
     const code = state.inviteCode;
     socket.emit('room:join', { code, name }, (r) => { if (!r?.ok) alert(r?.error || 'Fehler'); });
   };
-  $('#startGame').onclick = () => socket.emit('game:start', r => !r?.ok && alert(r?.error || 'Fehler'));
+  $('#startGame').onclick = () =>
+    socket.emit('game:start', r => !r?.ok && alert(r?.error || 'Fehler'));
   $('#peekBtn').onclick = () => socket.emit('dealer:peek');
   $('#copyLink').onclick = async () => {
     try {
@@ -140,7 +158,7 @@
     } catch { alert('Kopieren fehlgeschlagen'); }
   };
 
-  // ----- Invite-Link (?room=CODE) erkennen -----
+  /* ---------------- Invite-Link erkennen ---------------- */
   (function detectInvite() {
     const p = new URLSearchParams(location.search);
     let code = p.get('room') || location.hash.replace('#', '');
