@@ -1,5 +1,143 @@
-/* ... kompletter Style aus meiner vorherigen Version ... */
+/* Reset & Basics */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background: #222;
+  color: #eee;
+}
+h2, h3 {
+  margin-top: 0;
+}
+button {
+  padding: 8px 12px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.primary {
+  background: #28a745;
+  color: white;
+}
+button:hover {
+  opacity: 0.9;
+}
+input {
+  padding: 6px;
+  border-radius: 4px;
+  border: none;
+  font-size: 1rem;
+}
 
+/* Layout */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background: #333;
+}
+header .brand {
+  font-size: 1.4em;
+  font-weight: bold;
+}
+header .share {
+  display: flex;
+  gap: 4px;
+}
+header input {
+  width: 220px;
+}
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px;
+}
+.panel {
+  background: #333;
+  padding: 10px;
+  border-radius: 8px;
+  flex: 1 1 300px;
+  min-width: 250px;
+}
+
+/* Chips / Badges */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.badge {
+  background: #555;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.badge.big {
+  font-size: 1.2em;
+}
+.badge.subtle {
+  background: #444;
+}
+
+/* Muted text */
+.muted {
+  opacity: 0.7;
+}
+
+/* Cards display */
+.cardface {
+  background: white;
+  color: black;
+  width: 60px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8em;
+  border-radius: 6px;
+  margin: 5px;
+}
+.cardface.small {
+  width: 40px;
+  height: 60px;
+  font-size: 1.2em;
+}
+.cardface.dim {
+  opacity: 0.4;
+}
+.cardwrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 2px;
+}
+.count {
+  font-size: 0.8em;
+}
+.count.zero {
+  opacity: 0.4;
+}
+
+/* Rank pad */
+.pad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.pad button {
+  font-size: 1.2em;
+  padding: 8px;
+  background: #666;
+  color: white;
+  border-radius: 6px;
+}
+
+/* Popup */
 .popup {
   position: fixed;
   top: 20%;
@@ -12,6 +150,17 @@
   font-size: 1.2em;
   z-index: 999;
 }
-.popup.hidden { display: none; }
+.popup.hidden {
+  display: none;
+}
 
-
+/* Responsive */
+@media (max-width: 700px) {
+  header .share input {
+    width: 150px;
+  }
+  .cardface {
+    width: 50px;
+    height: 75px;
+  }
+}
