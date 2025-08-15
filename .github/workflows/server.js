@@ -10,16 +10,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Static & Health
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
 // ---------- Game State ----------
 const rooms = Object.create(null);
-const rankValue = r => r;                 // 2..10 = Zahl, J=11, Q=12, K=13, A=14
+const rankValue = r => r; // 2..10 = Zahl, 11=J, 12=Q, 13=K, 14=A
 const nextIdx = (i, n) => (i + 1) % n;
 const nextNonDealerIdx = (room, fromIdxExclusive) => {
-  // finde den nächsten Index ≠ dealerIdx (ein Schritt weiter als fromIdxExclusive)
   let idx = nextIdx(fromIdxExclusive, room.players.length);
   if (idx === room.dealerIdx) idx = nextIdx(idx, room.players.length);
   return idx;
@@ -55,33 +53,41 @@ function snapshot(room) {
   };
 }
 
-function startRound(room) {
-  if (room.deck.length === 0) {
-    room.status = 'ended';
-    room.round = null;
-    io.to(room.code).emit('room:update', snapshot(room));
-    return;
-  }
-  room.round = { phase: 'first', firstGuess: null, hint: null };
+// ---- feste Game-Over-Meldung (kein Verlierer ermittelt) ----
+function finishGame(room) {
+  room.status = 'ended';
+  room.round = null;
+  // feste Nachricht – unabhängig davon, wer „verloren“ hätte
+  const msg = 'Marc hat Verloren und muss sein Getränk Exen';
+  io.to(room.code).emit('game:over', { message: msg });
   io.to(room.code).emit('room:update', snapshot(room));
 }
 
+function startRound(room) {
+  if (room.deck.length === 0) { finishGame(room); return; }
+  room.round = { phase: 'first', firstGuess: null, hint: null };
+  io.to(room.code).emit('room:update', snapshot(room));
+
+  // Dealer sieht Karte automatisch
+  const dealerId = room.players[room.dealerIdx].id;
+  const currentRank = room.deck[0];
+  io.to(dealerId).emit('dealer:peek', { rank: currentRank });
+}
+
 function advanceAfterReveal(room) {
-  // Dealerwechsel nach 3 Fehlversuchen in Folge
+  // Dealerwechsel nach 3 misslungenen zweiten Tipps in Folge
   let dealerRotated = false;
   if (room.failCount >= 3) {
     room.dealerIdx = nextIdx(room.dealerIdx, room.players.length);
     room.failCount = 0;
     dealerRotated = true;
   }
-
-  // Nächster Tipp-Spieler: immer ein Nicht-Dealer
+  // Nächster Tipp-Spieler ≠ Dealer
   if (dealerRotated) {
-    room.turnIdx = nextNonDealerIdx(room, room.dealerIdx); // links vom neuen Dealer
+    room.turnIdx = nextNonDealerIdx(room, room.dealerIdx);
   } else {
-    room.turnIdx = nextNonDealerIdx(room, room.turnIdx);   // normal weiter, Dealer überspringen
+    room.turnIdx = nextNonDealerIdx(room, room.turnIdx);
   }
-
   startRound(room);
 }
 
@@ -114,7 +120,7 @@ io.on('connection', (socket) => {
     io.to(code).emit('room:update', snapshot(rooms[code]));
   });
 
-  // Raum beitreten (Duplikate verhindern)
+  // Raum beitreten (Duplikate & gleiche Namen verhindern)
   socket.on('room:join', ({ code, name }, cb) => {
     code = (code || '').toUpperCase();
     const room = rooms[code];
@@ -137,46 +143,53 @@ io.on('connection', (socket) => {
   });
 
   // Spiel starten (nur Owner)
-  socket.on('game:start', (cb) => {
-    const room = rooms[socket.data.code];
-    if (!room) return cb?.({ ok: false, error: 'Raum nicht gefunden' });
-    if (socket.id !== room.ownerId) return cb?.({ ok: false, error: 'Nur der Ersteller darf starten' });
-    if (room.players.length < 2) return cb?.({ ok: false, error: 'Mindestens 2 Spieler' });
-
+  function startNewGame(room) {
     room.deck = createDeck();
     room.history = [];
     room.tally = {};
     for (const p of room.players) room.tally[p.id] = 0;
     room.status = 'playing';
     room.failCount = 0;
-
     room.dealerIdx = Math.floor(Math.random() * room.players.length);
-    room.turnIdx = nextNonDealerIdx(room, room.dealerIdx); // Startspieler ≠ Dealer
-
+    room.turnIdx = nextNonDealerIdx(room, room.dealerIdx);
     startRound(room);
+  }
+
+  socket.on('game:start', (cb) => {
+    const room = rooms[socket.data.code];
+    if (!room) return cb?.({ ok: false, error: 'Raum nicht gefunden' });
+    if (socket.id !== room.ownerId) return cb?.({ ok: false, error: 'Nur der Ersteller darf starten' });
+    if (room.players.length < 2) return cb?.({ ok: false, error: 'Mindestens 2 Spieler' });
+    startNewGame(room);
     cb?.({ ok: true });
   });
 
-  // Dealer darf Karte ansehen
+  // Neustart am Ende (nur Owner)
+  socket.on('game:restart', (cb) => {
+    const room = rooms[socket.data.code];
+    if (!room) return cb?.({ ok: false, error: 'Raum nicht gefunden' });
+    if (socket.id !== room.ownerId) return cb?.({ ok: false, error: 'Nur der Ersteller darf neu starten' });
+    if (room.players.length < 2) return cb?.({ ok: false, error: 'Mindestens 2 Spieler' });
+    startNewGame(room);
+    cb?.({ ok: true });
+  });
+
+  // Dealer: Karte ansehen (optional manuell)
   socket.on('dealer:peek', () => {
     const room = rooms[socket.data.code];
     if (!room || room.status !== 'playing' || !room.round) return;
     const dealerId = room.players[room.dealerIdx].id;
-    if (dealerId !== socket.id) return; // nur Dealer
-    const currentRank = room.deck[0];
-    socket.emit('dealer:peek', { rank: currentRank });
+    if (dealerId !== socket.id) return;
+    io.to(socket.id).emit('dealer:peek', { rank: room.deck[0] });
   });
 
-  // ---------- Guess 1 ----------
+  // Erster Tipp
   socket.on('guess:first', ({ rank }, cb) => {
     const room = rooms[socket.data.code];
     if (!room || room.status !== 'playing' || !room.round) return;
     const dealerId = room.players[room.dealerIdx].id;
 
-    // ❗ Dealer darf nie raten
     if (socket.id === dealerId) return cb?.({ ok: false, error: 'Der Dealer rät nicht.' });
-
-    // nur Spieler am Zug
     if (room.players[room.turnIdx].id !== socket.id) return cb?.({ ok: false, error: 'Nicht dein Zug' });
 
     rank = Number(rank);
@@ -197,8 +210,8 @@ io.on('connection', (socket) => {
       room.deck.shift();
       room.failCount = 0;
 
-      // Nächster Spieler wird in advanceAfterReveal gesetzt (immer ≠ Dealer)
-      advanceAfterReveal(room);
+      if (room.deck.length === 0) finishGame(room);
+      else advanceAfterReveal(room);
     } else {
       room.round.hint = rank < actual ? 'higher' : 'lower';
       room.round.phase = 'second';
@@ -208,15 +221,13 @@ io.on('connection', (socket) => {
     cb?.({ ok: true });
   });
 
-  // ---------- Guess 2 ----------
+  // Zweiter Tipp
   socket.on('guess:second', ({ rank }, cb) => {
     const room = rooms[socket.data.code];
     if (!room || room.status !== 'playing' || !room.round) return;
     const dealerId = room.players[room.dealerIdx].id;
 
-    // ❗ Dealer darf nie raten
     if (socket.id === dealerId) return cb?.({ ok: false, error: 'Der Dealer rät nicht.' });
-
     if (room.players[room.turnIdx].id !== socket.id) return cb?.({ ok: false, error: 'Nicht dein Zug' });
 
     rank = Number(rank);
@@ -249,9 +260,9 @@ io.on('connection', (socket) => {
     room.history.push(actual);
     room.deck.shift();
 
-    // Nächster Spieler/Dealerwechsel
-    advanceAfterReveal(room);
-    io.to(room.code).emit('room:update', snapshot(room));
+    if (room.deck.length === 0) finishGame(room);
+    else advanceAfterReveal(room);
+
     cb?.({ ok: true });
   });
 
