@@ -10,26 +10,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Static files
+// Static & Health
 app.use(express.static(path.join(__dirname, 'public')));
-// einfache Health-Route (praktisch für Render)
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
-// -------------------- Spielzustand --------------------
-// rooms[code] = {
-//   code, status: 'lobby'|'playing'|'ended',
-//   ownerId,
-//   players: [{id,name,isOnline}],
-//   dealerIdx, turnIdx,
-//   deck: number[],              // nur Ränge 2..14
-//   history: number[],           // aufgedeckte Ränge
-//   tally: { [playerId]: number },
-//   failCount: number,           // Fehlversuche in Folge (nur „zweiter Versuch falsch“ zählt)
-//   round: { phase:'first'|'second', firstGuess:number|null, hint:'higher'|'lower'|null }
-// }
+// ---------- Game State ----------
 const rooms = Object.create(null);
 
-const rankValue = r => r; // 2..10 = Zahl, J=11, Q=12, K=13, A=14
+const rankValue = r => r;                 // 2..10 = Zahl, J=11, Q=12, K=13, A=14
 const nextIdx = (i, n) => (i + 1) % n;
 
 function createDeck() {
@@ -51,7 +39,7 @@ function snapshot(room) {
     turnIdx: room.turnIdx,
     deckCount: room.deck.length,
     status: room.status,
-    history: room.history.slice(),
+    history: room.history.slice(),   // bereits aufgedeckte Ränge
     tally: { ...room.tally },
     failCount: room.failCount,
     round: room.round ? {
@@ -82,8 +70,7 @@ function advanceAfterReveal(room) {
     dealerRotated = true;
   }
 
-  // Nächster Tipp-Spieler: immer „links vom Dealer“, wenn Dealer wechselte,
-  // sonst normal zum nächsten Spieler, aber Dealer überspringen.
+  // Nächster Tipp-Spieler
   if (dealerRotated) {
     room.turnIdx = nextIdx(room.dealerIdx, room.players.length);
   } else {
@@ -95,9 +82,8 @@ function advanceAfterReveal(room) {
   startRound(room);
 }
 
-// -------------------- Socket-Logik --------------------
 io.on('connection', (socket) => {
-  // Raum erstellen (Ersteller wird Owner)
+  // Raum erstellen
   socket.on('room:create', ({ name }, cb) => {
     const code = Math.random().toString(36).slice(2, 7).toUpperCase();
     const playerName = (name || 'Spieler').trim();
@@ -124,7 +110,7 @@ io.on('connection', (socket) => {
     io.to(code).emit('room:update', snapshot(rooms[code]));
   });
 
-  // Raum beitreten (mit einfachem Duplikatschutz)
+  // Raum beitreten
   socket.on('room:join', ({ code, name }, cb) => {
     code = (code || '').toUpperCase();
     const room = rooms[code];
@@ -134,9 +120,7 @@ io.on('connection', (socket) => {
     if (room.players.some(p => p.id === socket.id)) {
       return cb?.({ ok: false, error: 'Du bist schon im Raum' });
     }
-
     const playerName = (name || 'Spieler').trim();
-    // Optional: gleiche Namen verhindern
     if (room.players.some(p => p.name === playerName)) {
       return cb?.({ ok: false, error: 'Name bereits vergeben' });
     }
@@ -154,8 +138,7 @@ io.on('connection', (socket) => {
 
   // Spiel starten (nur Owner)
   socket.on('game:start', (cb) => {
-    const code = socket.data.code;
-    const room = rooms[code];
+    const room = rooms[socket.data.code];
     if (!room) return cb?.({ ok: false, error: 'Raum nicht gefunden' });
     if (socket.id !== room.ownerId) return cb?.({ ok: false, error: 'Nur der Ersteller darf starten' });
     if (room.players.length < 2) return cb?.({ ok: false, error: 'Mindestens 2 Spieler' });
@@ -167,7 +150,6 @@ io.on('connection', (socket) => {
     room.status = 'playing';
     room.failCount = 0;
 
-    // zufälliger Dealer; Startspieler ist links vom Dealer (Dealer selbst rät nicht)
     room.dealerIdx = Math.floor(Math.random() * room.players.length);
     room.turnIdx = nextIdx(room.dealerIdx, room.players.length);
 
@@ -175,12 +157,11 @@ io.on('connection', (socket) => {
     cb?.({ ok: true });
   });
 
-  // Dealer darf die verdeckte Karte ansehen
+  // Dealer darf Karte ansehen
   socket.on('dealer:peek', () => {
     const room = rooms[socket.data.code];
     if (!room || room.status !== 'playing' || !room.round) return;
     if (room.players[room.dealerIdx].id !== socket.id) return;
-    // Karte ist das oberste Element im Deck
     const currentRank = room.deck[0];
     socket.emit('dealer:peek', { rank: currentRank });
   });
@@ -189,7 +170,6 @@ io.on('connection', (socket) => {
   socket.on('guess:first', ({ rank }, cb) => {
     const room = rooms[socket.data.code];
     if (!room || room.status !== 'playing' || !room.round) return;
-    // nur Spieler am Zug
     if (room.players[room.turnIdx].id !== socket.id) return cb?.({ ok: false, error: 'Nicht dein Zug' });
 
     rank = Number(rank);
@@ -199,25 +179,24 @@ io.on('connection', (socket) => {
 
     const actual = room.deck[0];
     if (rank === actual) {
-      // Dealer trinkt Kartenwert
-      const dealerId = room.players[room.dealerIdx].id;
-      room.tally[dealerId] += rankValue(actual);
+      const dealer = room.players[room.dealerIdx];
+      const drinks = rankValue(actual);
+      room.tally[dealer.id] += drinks;
 
-      // Karte aufgedeckt
+      // Meldung an alle
+      const msg = `${socket.data.name} hat ${dealer.name} ${drinks} Schlücke eingeschenkt`;
+      io.to(room.code).emit('round:result', { type: 'first-correct', turnPlayerId: socket.id, targetId: dealer.id, drinks, actual, message: msg });
+
       room.history.push(actual);
       room.deck.shift();
-
-      // Failserie bricht
       room.failCount = 0;
 
-      // nächster Spieler (Dealer überspringen)
       let next = nextIdx(room.turnIdx, room.players.length);
       if (next === room.dealerIdx) next = nextIdx(next, room.players.length);
       room.turnIdx = next;
 
       advanceAfterReveal(room);
     } else {
-      // Hinweis + zweite Phase
       room.round.hint = rank < actual ? 'higher' : 'lower';
       room.round.phase = 'second';
       io.to(room.code).emit('room:update', snapshot(room));
@@ -239,44 +218,43 @@ io.on('connection', (socket) => {
     const first = room.round.firstGuess ?? actual;
 
     if (rank === actual) {
-      // Dealer trinkt Differenz zum ersten Tipp
-      const dealerId = room.players[room.dealerIdx].id;
-      const diff = Math.abs(first - actual);
-      room.tally[dealerId] += diff;
+      const dealer = room.players[room.dealerIdx];
+      const drinks = Math.abs(first - actual);
+      room.tally[dealer.id] += drinks;
 
-      // Failserie bricht
+      const msg = `${socket.data.name} hat ${dealer.name} ${drinks} Schlücke eingeschenkt`;
+      io.to(room.code).emit('round:result', { type: 'second-correct', turnPlayerId: socket.id, targetId: dealer.id, drinks, actual, message: msg });
+
       room.failCount = 0;
     } else {
-      // Spieler trinkt Differenz zum tatsächlichen Wert
-      const diff = Math.abs(rank - actual);
-      room.tally[socket.id] += diff;
+      const drinks = Math.abs(rank - actual);
+      room.tally[socket.id] += drinks;
 
-      // Fehlversuch zählt
+      const playerName = socket.data.name;
+      const dealerName = room.players[room.dealerIdx].name;
+      const msg = `Dealer ${dealerName} hat ${playerName} ${drinks} Schlücke eingeschenkt`;
+      io.to(room.code).emit('round:result', { type: 'second-wrong', turnPlayerId: socket.id, targetId: socket.id, drinks, actual, message: msg });
+
       room.failCount += 1;
     }
 
-    // Karte aufgedeckt
     room.history.push(actual);
     room.deck.shift();
 
-    // nach Aufdecken weiter
     advanceAfterReveal(room);
-
     io.to(room.code).emit('room:update', snapshot(room));
     cb?.({ ok: true });
   });
 
   socket.on('disconnect', () => {
-    const code = socket.data.code;
-    const room = rooms[code];
+    const room = rooms[socket.data.code];
     if (!room) return;
     const p = room.players.find(p => p.id === socket.id);
     if (p) p.isOnline = false;
-    io.to(code).emit('room:update', snapshot(room));
+    io.to(room.code).emit('room:update', snapshot(room));
   });
 });
 
-// Start
 server.listen(PORT, HOST, () => {
   console.log(`Server listening on http://${HOST}:${PORT}`);
 });
