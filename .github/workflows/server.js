@@ -31,7 +31,7 @@ rooms[code] = {
 */
 const rooms = Object.create(null);
 const nextIdx = (i, n) => (i + 1) % n;
-const valueOf = r => r;
+const valueOf = r => r; // 2..10 = Zahl; 11=J,12=Q,13=K,14=A
 
 function makeDeck() {
   const d = [];
@@ -117,6 +117,17 @@ function advanceAfterReveal(room) {
   startRound(room);
 }
 
+// ====== Helper: Popup-Text ======
+function rankLabel(r) {
+  if (r <= 10) return String(r);
+  return ({11:'Bube',12:'Dame',13:'König',14:'Ass'})[r] || String(r);
+}
+function buildPourMessage(room, {turnPlayerId, targetId, drinks}) {
+  const from = room.players.find(p => p.id === turnPlayerId)?.name || 'Spieler';
+  const to   = room.players.find(p => p.id === targetId)?.name || 'Spieler';
+  return `${from} hat ${to} ${drinks} Schlücke eingeschenkt`;
+}
+
 // ====== Sockets ======
 io.on('connection', (socket) => {
   console.log('[socket] connected', socket.id);
@@ -144,18 +155,30 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Raum beitreten
+  // Raum beitreten (mit Duplikat-Schutz)
   socket.on('room:join', ({ code, name }, cb) => {
     try {
       code = (code || '').toUpperCase();
       const room = rooms[code];
       if (!room) return cb?.({ ok:false, error:'Raum nicht gefunden' });
       if (room.status === 'ended') return cb?.({ ok:false, error:'Spiel beendet' });
-      room.players.push({ id: socket.id, name: (name || 'Spieler').trim(), isOnline: true });
+
+      // 🔒 derselbe Socket darf nicht doppelt
+      if (room.players.some(p => p.id === socket.id)) {
+        return cb?.({ ok:false, error:'Du bist schon im Raum' });
+      }
+      // 🔒 Option: Name einzigartig halten (kannst du entfernen, wenn du gleiche Namen erlauben willst)
+      const trimmedName = (name || 'Spieler').trim();
+      if (room.players.some(p => p.name === trimmedName)) {
+        return cb?.({ ok:false, error:'Name bereits vergeben' });
+      }
+
+      room.players.push({ id: socket.id, name: trimmedName, isOnline: true });
       room.tally[socket.id] = 0;
       socket.join(code);
       socket.data.code = code;
-      socket.data.name = (name || 'Spieler').trim();
+      socket.data.name = trimmedName;
+
       cb?.({ ok:true, code });
       io.to(code).emit('room:update', snapshot(room));
     } catch (e) {
@@ -180,7 +203,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Dealer sieht Karte (auf Wunsch)
+  // Dealer darf Karte sehen (Taste „Karte zeigen“)
   socket.on('dealer:peek', () => {
     const room = rooms[socket.data.code];
     if (!room || !room.round) return;
@@ -203,8 +226,13 @@ io.on('connection', (socket) => {
       if (rank === actual) {
         room.failCount = 0;
         const dealerId = room.players[room.dealerIdx].id;
-        room.tally[dealerId] += valueOf(actual);
-        io.to(room.code).emit('round:result', { type:'first-correct', turnPlayerId: socket.id, actual, drinks:valueOf(actual), targetId: dealerId });
+        const drinks = valueOf(actual);
+        room.tally[dealerId] += drinks;
+
+        const payload = { type:'first-correct', turnPlayerId: socket.id, actual, drinks, targetId: dealerId };
+        io.to(room.code).emit('round:result', payload);
+        io.to(room.code).emit('popup', { message: buildPourMessage(room, payload) });
+
         room.history.push({ rank: actual, byPlayerId: socket.id });
         advanceAfterReveal(room);
         io.to(room.code).emit('room:update', snapshot(room));
@@ -239,14 +267,20 @@ io.on('connection', (socket) => {
       if (rank === actual) {
         room.failCount = 0;
         const dealerId = room.players[room.dealerIdx].id;
-        const diff = Math.abs(first - actual);
-        room.tally[dealerId] += diff;
-        io.to(room.code).emit('round:result', { type:'second-correct', turnPlayerId: socket.id, actual, drinks: diff, targetId: dealerId });
+        const drinks = Math.abs(first - actual);
+        room.tally[dealerId] += drinks;
+
+        const payload = { type:'second-correct', turnPlayerId: socket.id, actual, drinks, targetId: dealerId };
+        io.to(room.code).emit('round:result', payload);
+        io.to(room.code).emit('popup', { message: buildPourMessage(room, payload) });
       } else {
-        const diff = Math.abs(rank - actual);
-        room.tally[socket.id] += diff;
+        const drinks = Math.abs(rank - actual);
+        room.tally[socket.id] += drinks;
         room.failCount += 1;
-        io.to(room.code).emit('round:result', { type:'second-wrong', turnPlayerId: socket.id, actual, drinks: diff, targetId: socket.id });
+
+        const payload = { type:'second-wrong', turnPlayerId: socket.id, actual, drinks, targetId: socket.id };
+        io.to(room.code).emit('round:result', payload);
+        io.to(room.code).emit('popup', { message: buildPourMessage(room, payload) });
       }
 
       room.history.push({ rank: actual, byPlayerId: socket.id });
