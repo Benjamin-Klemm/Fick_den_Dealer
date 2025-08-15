@@ -9,7 +9,7 @@
   };
   const RANK_TEXT = r => r <= 10 ? String(r) : ({ 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }[r]);
 
-  /* ---------------- Helpers ---------------- */
+  // ----- Helpers -----
   function setShareLink(code) {
     const el = $('#shareLink');
     if (el) el.value = `${location.origin}/?room=${code}`;
@@ -20,6 +20,7 @@
     $('#linkJoinControls')?.classList.toggle('hidden', !hasInvite);
     if (hasInvite) { const rc = $('#roomCode'); if (rc) rc.value = state.inviteCode; }
   }
+  const setLog = (txt) => { const el = $('#log'); if (el) el.textContent = txt; };
 
   function renderPlayers(room) {
     const box = $('#players'); box.innerHTML = '';
@@ -44,31 +45,21 @@
     }
   }
 
-  // ► NEU: Eindeutige Anzeige, welche Karten schon aufgedeckt sind (mit Zählern)
   function renderHistory(room) {
-    const counts = new Map(); // rank -> count
+    const counts = new Map();
     (room.history || []).forEach(rank => counts.set(rank, (counts.get(rank) || 0) + 1));
-
-    const hist = $('#history');
-    hist.innerHTML = '';
-
+    const hist = $('#history'); hist.innerHTML = '';
     for (let r = 2; r <= 14; r++) {
       const n = counts.get(r) || 0;
-
       const wrap = document.createElement('div');
       wrap.className = 'cardwrap';
-
       const card = document.createElement('div');
       card.className = 'cardface small' + (n === 0 ? ' dim' : '');
       card.textContent = RANK_TEXT(r);
-      card.title = `Aufgedeckt: ${n}`;
-
       const badge = document.createElement('span');
       badge.className = 'count' + (n === 0 ? ' zero' : '');
       badge.textContent = `× ${n}`;
-
-      wrap.appendChild(card);
-      wrap.appendChild(badge);
+      wrap.appendChild(card); wrap.appendChild(badge);
       hist.appendChild(wrap);
     }
   }
@@ -93,11 +84,9 @@
 
     if (room.status === 'playing') {
       show('#game');
-
       const meIsDealer = room.players[room.dealerIdx]?.id === state.me.id;
       const meIsTurn   = room.players[room.turnIdx]?.id === state.me.id;
 
-      // Nur Dealer sieht Dealer-Ansicht, nur Spieler am Zug sieht Tipp-Pad
       $('#dealerView').classList.toggle('hidden', !meIsDealer);
       $('#turnView').classList.toggle('hidden', !meIsTurn);
 
@@ -118,7 +107,7 @@
     }
   }
 
-  function showPopup(message, ms = 2000) {
+  function showPopup(message, ms = 2200) {
     const pop = $('#popup'), txt = $('#popup-text');
     if (!pop || !txt) return;
     txt.textContent = message;
@@ -127,38 +116,43 @@
     showPopup._t = setTimeout(() => pop.classList.add('hidden'), ms);
   }
 
-  /* ---------------- Sockets ---------------- */
+  // ----- Socket events -----
   socket.on('connect', () => { state.me.id = socket.id; });
   socket.on('room:update', room => renderRoom(room));
-  socket.on('dealer:peek', ({ rank }) => { $('#dealerCard').textContent = RANK_TEXT(rank); });
-  socket.on('popup', ({ message }) => showPopup(message));
 
-  /* ---------------- Buttons ---------------- */
+  // ► NEU: persistente Ergebnis-Meldung
+  socket.on('round:result', (ev) => {
+    // ev: { message, drinks, actual, turnPlayerId, targetId, type }
+    if (ev?.message) setLog(ev.message);
+    // Optional auch als kleines Popup:
+    // showPopup(ev.message);
+  });
+
+  socket.on('dealer:peek', ({ rank }) => { $('#dealerCard').textContent = (rank <= 10 ? String(rank) : ({11:'J',12:'Q',13:'K',14:'A'}[rank])); });
+
+  // ----- Buttons -----
   $('#createRoom').onclick = () => {
     const name = ($('#name').value || '').trim();
-    socket.emit('room:create', { name }, (r) => { if (!r?.ok) alert(r?.error || 'Fehler'); });
+    socket.emit('room:create', { name }, r => !r?.ok && alert(r?.error || 'Fehler'));
   };
   $('#joinRoom').onclick = () => {
     const name = ($('#name').value || '').trim();
     const code = ($('#roomCode').value || '').trim();
-    socket.emit('room:join', { code, name }, (r) => { if (!r?.ok) alert(r?.error || 'Fehler'); });
+    socket.emit('room:join', { code, name }, r => !r?.ok && alert(r?.error || 'Fehler'));
   };
   $('#joinViaLink').onclick = () => {
     const name = ($('#name').value || '').trim();
     const code = state.inviteCode;
-    socket.emit('room:join', { code, name }, (r) => { if (!r?.ok) alert(r?.error || 'Fehler'); });
+    socket.emit('room:join', { code, name }, r => !r?.ok && alert(r?.error || 'Fehler'));
   };
-  $('#startGame').onclick = () =>
-    socket.emit('game:start', r => !r?.ok && alert(r?.error || 'Fehler'));
+  $('#startGame').onclick = () => socket.emit('game:start', r => !r?.ok && alert(r?.error || 'Fehler'));
   $('#peekBtn').onclick = () => socket.emit('dealer:peek');
   $('#copyLink').onclick = async () => {
-    try {
-      await navigator.clipboard.writeText($('#shareLink').value || '');
-      alert('Link kopiert');
-    } catch { alert('Kopieren fehlgeschlagen'); }
+    try { await navigator.clipboard.writeText($('#shareLink').value || ''); alert('Link kopiert'); }
+    catch { alert('Kopieren fehlgeschlagen'); }
   };
 
-  /* ---------------- Invite-Link erkennen ---------------- */
+  // Invite-Link (?room=CODE)
   (function detectInvite() {
     const p = new URLSearchParams(location.search);
     let code = p.get('room') || location.hash.replace('#', '');
