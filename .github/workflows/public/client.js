@@ -1,88 +1,99 @@
-(function(){
+(function () {
   const socket = io();
-  let state = { me: {}, room: null };
+  let state = { me: { id: null }, room: null, inviteCode: null };
 
   const $ = sel => document.querySelector(sel);
   const show = id => {
-    ['#lobby','#game'].forEach(sel => $(sel).classList.add('hidden'));
+    ['#lobby', '#game'].forEach(s => $(s).classList.add('hidden'));
     $(id).classList.remove('hidden');
   };
+  const RANK_TEXT = r => r <= 10 ? String(r) : ({ 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }[r]);
 
-  const RANK_TEXT = r => r<=10?String(r):({11:'J',12:'Q',13:'K',14:'A'}[r]);
-
-  function setShareLink(code){
-    $('#shareLink').value = `${location.origin}/?room=${code}`;
+  // ----- Helpers -----
+  function setShareLink(code) {
+    const el = $('#shareLink');
+    if (el) el.value = `${location.origin}/?room=${code}`;
+  }
+  function toggleJoinUI() {
+    const hasInvite = !!state.inviteCode;
+    $('#creatorControls')?.classList.toggle('hidden', hasInvite);
+    $('#linkJoinControls')?.classList.toggle('hidden', !hasInvite);
+    if (hasInvite) { const rc = $('#roomCode'); if (rc) rc.value = state.inviteCode; }
   }
 
-  function renderPlayers(room){
-    $('#players').innerHTML = '';
-    room.players.forEach((p,idx)=>{
+  function renderPlayers(room) {
+    const box = $('#players'); box.innerHTML = '';
+    room.players.forEach((p, idx) => {
       const el = document.createElement('div');
       el.className = 'badge';
       const tags = [];
-      if (idx===room.dealerIdx) tags.push('Dealer');
-      if (idx===room.turnIdx) tags.push('am Zug');
-      el.textContent = `${p.name}${tags.length?' ['+tags.join(', ')+']':''}`;
-      $('#players').appendChild(el);
+      if (idx === room.dealerIdx) tags.push('Dealer');
+      if (idx === room.turnIdx) tags.push('am Zug');
+      el.textContent = `${p.name}${tags.length ? ' [' + tags.join(', ') + ']' : ''}`;
+      box.appendChild(el);
     });
   }
 
-  function renderPad(phase){
-    $('#rankPad').innerHTML = '';
-    for(let r=2;r<=14;r++){
+  function renderPad(phase) {
+    const pad = $('#rankPad'); pad.innerHTML = '';
+    for (let r = 2; r <= 14; r++) {
       const b = document.createElement('button');
       b.textContent = RANK_TEXT(r);
-      b.onclick = ()=> socket.emit(phase==='first'?'guess:first':'guess:second', {rank:r});
-      $('#rankPad').appendChild(b);
+      b.onclick = () => socket.emit(phase === 'first' ? 'guess:first' : 'guess:second', { rank: r });
+      pad.appendChild(b);
     }
   }
 
-  function renderHistory(room){
+  function renderHistory(room) {
     const counts = {};
-    (room.history||[]).forEach(h => counts[h] = (counts[h]||0)+1);
-    $('#history').innerHTML = '';
-    for(let r=2;r<=14;r++){
+    (room.history || []).forEach(v => counts[v] = (counts[v] || 0) + 1);
+    const hist = $('#history'); hist.innerHTML = '';
+    for (let r = 2; r <= 14; r++) {
       const card = document.createElement('div');
       card.className = 'cardface';
       card.textContent = RANK_TEXT(r);
-      $('#history').appendChild(card);
+      hist.appendChild(card);
+      // (mobil einfache Anzeige; Zähler sind optional)
     }
   }
 
-  function renderTally(room){
-    $('#tally').innerHTML = '';
-    room.players.forEach(p=>{
+  function renderTally(room) {
+    const t = $('#tally'); t.innerHTML = '';
+    room.players.forEach(p => {
       const row = document.createElement('div');
-      row.innerHTML = `${p.name}: ${room.tally?.[p.id]||0}`;
-      $('#tally').appendChild(row);
+      row.textContent = `${p.name}: ${room.tally?.[p.id] || 0}`;
+      t.appendChild(row);
     });
   }
 
-  function renderRoom(room){
+  function renderRoom(room) {
     state.room = room;
     setShareLink(room.code);
     renderPlayers(room);
-    $('#dealerBadge').textContent = `Dealer: ${room.players[room.dealerIdx]?.name||'-'}`;
-    $('#turnBadge').textContent = `Am Zug: ${room.players[room.turnIdx]?.name||'-'}`;
-    $('#deckCount').textContent = `Karten im Stapel: ${room.deckCount}`;
 
-    if(room.status==='playing'){
+    $('#dealerBadge').textContent = `Dealer: ${room.players[room.dealerIdx]?.name || '-'}`;
+    $('#turnBadge').textContent   = `Am Zug: ${room.players[room.turnIdx]?.name || '-'}`;
+    $('#deckCount').textContent   = `Karten im Stapel: ${room.deckCount}`;
+
+    if (room.status === 'playing') {
       show('#game');
+
       const meIsDealer = room.players[room.dealerIdx]?.id === state.me.id;
-      const meIsTurn = room.players[room.turnIdx]?.id === state.me.id;
+      const meIsTurn   = room.players[room.turnIdx]?.id === state.me.id;
 
       $('#dealerView').classList.toggle('hidden', !meIsDealer);
       $('#turnView').classList.toggle('hidden', !meIsTurn);
 
-      if(room.round && meIsTurn){
+      if (room.round && meIsTurn) {
         renderPad(room.round.phase);
-        $('#firstGuessInfo').textContent = `Erster Tipp: ${room.round.firstGuess || '-'}`;
+        $('#firstGuessInfo').textContent = `Erster Tipp: ${room.round.firstGuess || '–'}`;
         $('#hintBox').textContent = room.round.hint || '';
       } else {
         $('#rankPad').innerHTML = '';
         $('#firstGuessInfo').textContent = 'Erster Tipp: –';
         $('#hintBox').textContent = '';
       }
+
       renderHistory(room);
       renderTally(room);
     } else {
@@ -90,23 +101,53 @@
     }
   }
 
-  socket.on('connect', ()=> state.me.id = socket.id);
-  socket.on('room:update', room => renderRoom(room));
-  socket.on('dealer:peek', ({rank}) => $('#dealerCard').textContent = RANK_TEXT(rank));
+  function showPopup(message, ms = 2000) {
+    const pop = $('#popup'), txt = $('#popup-text');
+    if (!pop || !txt) return;
+    txt.textContent = message;
+    pop.classList.remove('hidden');
+    clearTimeout(showPopup._t);
+    showPopup._t = setTimeout(() => pop.classList.add('hidden'), ms);
+  }
 
-  $('#createRoom').onclick = ()=> {
-    const name = $('#name').value.trim();
-    socket.emit('room:create',{name});
+  // ----- Socket events -----
+  socket.on('connect', () => { state.me.id = socket.id; });
+  socket.on('room:update', room => renderRoom(room));
+  socket.on('dealer:peek', ({ rank }) => { $('#dealerCard').textContent = RANK_TEXT(rank); });
+  socket.on('popup', ({ message }) => showPopup(message));
+
+  // ----- Buttons -----
+  $('#createRoom').onclick = () => {
+    const name = ($('#name').value || '').trim();
+    socket.emit('room:create', { name }, (r) => { if (!r?.ok) alert(r?.error || 'Fehler'); });
   };
-  $('#joinRoom').onclick = ()=> {
-    const name = $('#name').value.trim();
-    const code = $('#roomCode').value.trim();
-    socket.emit('room:join',{name,code});
+  $('#joinRoom').onclick = () => {
+    const name = ($('#name').value || '').trim();
+    const code = ($('#roomCode').value || '').trim();
+    socket.emit('room:join', { code, name }, (r) => { if (!r?.ok) alert(r?.error || 'Fehler'); });
   };
-  $('#startGame').onclick = ()=> socket.emit('game:start');
-  $('#peekBtn').onclick = ()=> socket.emit('dealer:peek');
-  $('#copyLink').onclick = ()=> {
-    navigator.clipboard.writeText($('#shareLink').value);
-    alert('Link kopiert');
+  $('#joinViaLink').onclick = () => {
+    const name = ($('#name').value || '').trim();
+    const code = state.inviteCode;
+    socket.emit('room:join', { code, name }, (r) => { if (!r?.ok) alert(r?.error || 'Fehler'); });
   };
+  $('#startGame').onclick = () => socket.emit('game:start', r => !r?.ok && alert(r?.error || 'Fehler'));
+  $('#peekBtn').onclick = () => socket.emit('dealer:peek');
+  $('#copyLink').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText($('#shareLink').value || '');
+      alert('Link kopiert');
+    } catch { alert('Kopieren fehlgeschlagen'); }
+  };
+
+  // ----- Invite-Link (?room=CODE) erkennen -----
+  (function detectInvite() {
+    const p = new URLSearchParams(location.search);
+    let code = p.get('room') || location.hash.replace('#', '');
+    if (code) {
+      state.inviteCode = code.toUpperCase();
+      const rc = $('#roomCode'); if (rc) rc.value = state.inviteCode;
+    }
+    toggleJoinUI();
+  })();
 })();
