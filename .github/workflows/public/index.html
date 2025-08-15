@@ -15,15 +15,26 @@
     </div>
   </header>
 
+  <!-- Popup (Option, wird von client.js genutzt) -->
+  <div id="popup" class="popup hidden"><div id="popup-text"></div></div>
+
   <section id="lobby" class="panel">
     <h2>Lobby</h2>
+
+    <!-- EIN einziges Namensfeld -->
     <label for="name">Dein Name</label>
     <input id="name" maxlength="20" placeholder="z. B. Ben">
 
-    <div class="row">
+    <!-- Normale Steuerung: Raum erstellen / manuell beitreten -->
+    <div class="row" id="creatorControls">
       <button id="createRoom">Raum erstellen</button>
       <input id="roomCode" placeholder="Raumcode">
       <button id="joinRoom">Beitreten</button>
+    </div>
+
+    <!-- Vereinfachtes Beitreten, wenn man über ?room=CODE kommt -->
+    <div class="row hidden" id="linkJoinControls">
+      <button id="joinViaLink" class="primary">Beitreten</button>
     </div>
 
     <div id="players" class="chips"></div>
