@@ -1,5 +1,5 @@
 const socket = io();
-let state = { me: { id: null, name: '' }, room: null };
+let state = { me: { id: null, name: '' }, room: null, inviteCode: null };
 
 const $ = s => document.querySelector(s);
 const show = id => { ['#lobby','#game'].forEach(sel=>$(sel).classList.add('hidden')); $(id).classList.remove('hidden'); };
@@ -42,11 +42,9 @@ function renderHistory(room){
   const area = $('#history'); if (!area) return;
   area.innerHTML='';
 
-  // Counts je Rang aus der History bilden
   const counts = new Map();
   (room.history||[]).forEach(h => counts.set(h.rank, (counts.get(h.rank)||0)+1));
 
-  // Immer in fester Reihenfolge 2..A darstellen
   for (let r=2; r<=14; r++){
     const c = counts.get(r) || 0;
 
@@ -79,16 +77,31 @@ function renderTally(room){
   });
 }
 
+function toggleCreateJoinUI() {
+  const hasInvite = !!state.inviteCode;
+  // Wenn via Link gekommen: nur Name + "Beitreten"
+  $('#creatorControls').classList.toggle('hidden', hasInvite);
+  $('#linkJoinControls').classList.toggle('hidden', !hasInvite);
+  if (hasInvite) {
+    $('#roomCode').value = state.inviteCode;
+  }
+}
+
 function renderRoom(room){
   state.room = room;
   setShareLink(room.code);
   renderPlayers(room);
 
+  // Start-Button nur für Owner sichtbar (zusätzlich enforced am Server)
+  const amOwner = room.ownerId === state.me.id;
+  const startBtn = $('#startGame');
+  startBtn.style.display = amOwner && room.status==='lobby' ? 'inline-block' : 'none';
+
   $('#dealerBadge').textContent = `Dealer: ${room.players[room.dealerIdx]?.name || '-'}`;
   $('#turnBadge').textContent   = `Am Zug: ${room.players[room.turnIdx]?.name || '-'}`;
   $('#deckCount').textContent   = `Karten im Stapel: ${room.deckCount}`;
 
-  // FailCounter anzeigen (wie viele bis Dealerwechsel)
+  // FailCounter anzeigen
   if (typeof room.failCount === 'number') {
     const remaining = Math.max(0, 3 - room.failCount);
     $('#dealerBadge').textContent += `  —  Noch ${remaining} Fehlversuch${remaining===1?'':'e'} bis Dealerwechsel`;
@@ -99,7 +112,8 @@ function renderRoom(room){
     const meIsDealer = room.players[room.dealerIdx]?.id === state.me.id;
     const meIsTurn   = room.players[room.turnIdx]?.id === state.me.id;
 
-    // Nur aktueller Spieler sieht "Tippen"
+    const wasHiddenBefore = $('#turnView').classList.contains('hidden');
+
     $('#dealerView').classList.toggle('hidden', !meIsDealer);
     $('#turnView').classList.toggle('hidden', !meIsTurn);
     $('#spectatorView').classList.toggle('hidden', meIsDealer || meIsTurn);
@@ -118,6 +132,11 @@ function renderRoom(room){
 
     renderHistory(room);
     renderTally(room);
+
+    // Handy: wenn ich jetzt dran bin, scrolle den Tipp-Block ins Bild
+    if (meIsTurn && wasHiddenBefore && window.innerWidth <= 700) {
+      document.querySelector('#turnView')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   } else {
     show('#lobby');
   }
@@ -125,8 +144,8 @@ function renderRoom(room){
 
 function logLine(text){ const log = $('#log'); if (log) log.textContent = text; }
 
+// --- Socket Events ---
 socket.on('connect', ()=>{ state.me.id = socket.id; });
-
 socket.on('room:update', (room) => { renderRoom(room); });
 
 socket.on('dealer:peek', ({rank}) => {
@@ -151,6 +170,7 @@ socket.on('round:result', (ev) => {
   const d = $('#dealerCard'); if (d){ d.textContent='？'; d.classList.add('dim'); }
 });
 
+// --- Buttons ---
 $('#createRoom').onclick = () => {
   const name = $('#name').value.trim();
   socket.emit('room:create', {name}, r => !r?.ok && alert(r?.error||'Fehler'));
@@ -160,7 +180,14 @@ $('#joinRoom').onclick = () => {
   const code = ($('#roomCode').value||'').trim();
   socket.emit('room:join', {code, name}, r => !r?.ok && alert(r?.error||'Fehler'));
 };
-$('#startGame').onclick = () => socket.emit('game:start', r=>!r?.ok && alert(r?.error||'Fehler beim Start'));
+// Join via Link (nur Namensfeld)
+$('#joinViaLink').onclick = () => {
+  const name = $('#name').value.trim();
+  const code = state.inviteCode;
+  socket.emit('room:join', {code, name}, r => !r?.ok && alert(r?.error||'Fehler'));
+};
+
+$('#startGame').onclick = () => socket.emit('game:start', r=>!r?.ok && alert(r?.error||'Nur der Ersteller darf starten oder nicht genug Spieler'));
 $('#peekBtn').onclick = () => socket.emit('dealer:peek');
 $('#copyLink').onclick = async () => {
   try { await navigator.clipboard.writeText($('#shareLink').value);
@@ -168,9 +195,15 @@ $('#copyLink').onclick = async () => {
   } catch { alert('Kopieren fehlgeschlagen'); }
 };
 
+// --- Auto-Join via Link (?room=CODE) ---
 (function(){
   const p = new URLSearchParams(location.search);
   let code = p.get('room') || location.hash.replace('#','');
-  if (code) { code = code.toUpperCase(); $('#roomCode').value = code; }
+  if (code) {
+    code = code.toUpperCase();
+    state.inviteCode = code;
+    $('#roomCode').value = code;
+  }
+  toggleCreateJoinUI();
 })();
 
