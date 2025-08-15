@@ -1,11 +1,33 @@
+/* ========== Basics ========== */
+* { box-sizing: border-box; }
 body {
   font-family: Arial, sans-serif;
   background: #121212;
   color: #fff;
   margin: 0;
-  padding: 0;
 }
 
+.hidden { display: none; }
+
+button {
+  padding: 8px 12px;
+  border: none;
+  background: #3366ff;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+input {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: none;
+  background: #1b1b1b;
+  color: #fff;
+}
+
+/* ========== Header / Share ========== */
 .appbar {
   background: #1f1f1f;
   padding: 10px;
@@ -13,104 +35,104 @@ body {
   flex-direction: column;
   gap: 8px;
 }
+.appbar h1 { margin: 0; font-size: 1.3rem; }
+.share { display: flex; gap: 6px; }
+.share input { flex: 1; }
 
-.appbar h1 {
-  margin: 0;
-  font-size: 1.4rem;
-}
-
-.share {
-  display: flex;
-  gap: 5px;
-}
-
-.share input {
-  flex: 1;
-  padding: 6px;
-  border: none;
-  border-radius: 4px;
-}
-
-button {
-  padding: 8px 12px;
-  border: none;
-  background: #3366ff;
-  color: white;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
+/* ========== Panels & Grid ========== */
 .panel {
   background: #1e1e1e;
   margin: 10px;
-  padding: 10px;
-  border-radius: 8px;
+  padding: 12px;
+  border-radius: 10px;
 }
-
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 10px;
 }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
+/* ========== Badges / Chips ========== */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.badge {
+  background: #444;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: .95rem;
+}
+
+/* ========== Cards ========== */
 .cardface {
   width: 60px;
   height: 90px;
-  background: white;
-  color: black;
+  background: #fff;
+  color: #111;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-weight: 700;
   font-size: 1.5rem;
-  border-radius: 6px;
+  border-radius: 8px;
   margin-bottom: 10px;
+  user-select: none;
 }
 
+.hist { display: flex; flex-wrap: wrap; gap: 8px; }
+.cardwrap { position: relative; display: inline-block; }
+.cardface.small {
+  width: 46px;
+  height: 66px;
+  font-size: 1.1rem;
+  border-radius: 8px;
+}
+.cardface.dim { filter: grayscale(1) brightness(.8); }
+
+/* Count-Badge unten rechts an der Karte */
+.count {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  background: #111a;
+  color: #fff;
+  border: 1px solid #2a2a2a;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: .75rem;
+  line-height: 1;
+}
+.count.zero { opacity: .45; }
+
+/* ========== Rank Pad ========== */
 .pad {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
-}
-
-.pad button {
-  padding: 12px;
-  font-size: 1rem;
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.badge {
-  background: #444;
-  padding: 4px 8px;
-  border-radius: 12px;
-}
-
-.hist {
-  display: flex;
-  flex-wrap: wrap;
   gap: 6px;
 }
-
-.hist .cardface {
-  width: 40px;
-  height: 60px;
-  font-size: 1rem;
+.pad button {
+  padding: 12px;
+  font-size: 1.05rem;
+  background: #2f53ff;
+  border-radius: 8px;
 }
 
+/* ========== Popup (optional) ========== */
+.popup {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,.85);
+  color: #fff;
+  padding: 18px 22px;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  z-index: 999;
+}
+.popup.hidden { display: none; }
+
+/* ========== Responsive ========== */
 @media (max-width: 600px) {
-  .pad {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .share {
-    flex-direction: column;
-  }
+  .share { flex-direction: column; }
+  .pad { grid-template-columns: repeat(3, 1fr); }
 }
