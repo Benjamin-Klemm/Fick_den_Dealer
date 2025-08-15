@@ -1,166 +1,116 @@
-/* Reset & Basics */
-* {
-  box-sizing: border-box;
-}
 body {
+  font-family: Arial, sans-serif;
+  background: #121212;
+  color: #fff;
   margin: 0;
-  font-family: sans-serif;
-  background: #222;
-  color: #eee;
-}
-h2, h3 {
-  margin-top: 0;
-}
-button {
-  padding: 8px 12px;
-  font-size: 1rem;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-button.primary {
-  background: #28a745;
-  color: white;
-}
-button:hover {
-  opacity: 0.9;
-}
-input {
-  padding: 6px;
-  border-radius: 4px;
-  border: none;
-  font-size: 1rem;
+  padding: 0;
 }
 
-/* Layout */
-header {
+.appbar {
+  background: #1f1f1f;
+  padding: 10px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-  background: #333;
+  flex-direction: column;
+  gap: 8px;
 }
-header .brand {
-  font-size: 1.4em;
-  font-weight: bold;
+
+.appbar h1 {
+  margin: 0;
+  font-size: 1.4rem;
 }
-header .share {
+
+.share {
   display: flex;
-  gap: 4px;
+  gap: 5px;
 }
-header input {
-  width: 220px;
+
+.share input {
+  flex: 1;
+  padding: 6px;
+  border: none;
+  border-radius: 4px;
+}
+
+button {
+  padding: 8px 12px;
+  border: none;
+  background: #3366ff;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.panel {
+  background: #1e1e1e;
+  margin: 10px;
+  padding: 10px;
+  border-radius: 8px;
 }
 
 .grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 10px;
-  padding: 10px;
-}
-.panel {
-  background: #333;
-  padding: 10px;
-  border-radius: 8px;
-  flex: 1 1 300px;
-  min-width: 250px;
 }
 
-/* Chips / Badges */
+.cardface {
+  width: 60px;
+  height: 90px;
+  background: white;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.pad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.pad button {
+  padding: 12px;
+  font-size: 1rem;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
 }
+
 .badge {
-  background: #555;
-  padding: 4px 8px;
-  border-radius: 8px;
-}
-.badge.big {
-  font-size: 1.2em;
-}
-.badge.subtle {
   background: #444;
+  padding: 4px 8px;
+  border-radius: 12px;
 }
 
-/* Muted text */
-.muted {
-  opacity: 0.7;
-}
-
-/* Cards display */
-.cardface {
-  background: white;
-  color: black;
-  width: 60px;
-  height: 90px;
+.hist {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.8em;
-  border-radius: 6px;
-  margin: 5px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
-.cardface.small {
+
+.hist .cardface {
   width: 40px;
   height: 60px;
-  font-size: 1.2em;
-}
-.cardface.dim {
-  opacity: 0.4;
-}
-.cardwrap {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  margin: 2px;
-}
-.count {
-  font-size: 0.8em;
-}
-.count.zero {
-  opacity: 0.4;
+  font-size: 1rem;
 }
 
-/* Rank pad */
-.pad {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-}
-.pad button {
-  font-size: 1.2em;
-  padding: 8px;
-  background: #666;
-  color: white;
-  border-radius: 6px;
-}
-
-/* Popup */
-.popup {
-  position: fixed;
-  top: 20%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0,0,0,0.85);
-  color: white;
-  padding: 20px 30px;
-  border-radius: 12px;
-  font-size: 1.2em;
-  z-index: 999;
-}
-.popup.hidden {
-  display: none;
-}
-
-/* Responsive */
-@media (max-width: 700px) {
-  header .share input {
-    width: 150px;
+@media (max-width: 600px) {
+  .pad {
+    grid-template-columns: repeat(3, 1fr);
   }
-  .cardface {
-    width: 50px;
-    height: 75px;
+  .share {
+    flex-direction: column;
   }
 }
